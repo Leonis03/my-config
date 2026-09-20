@@ -1,0 +1,26 @@
+# Append to /etc/fstab. Requires `[automount] enabled=false` + `mountFsTab=true`
+# in /etc/wsl.conf (see files/wsl.conf).
+#
+# --- Windows fixed drives -----------------------------------------------------
+# Mount ONLY the fixed drives. Every other drive letter (USB, card reader) is
+# deliberately left unmounted so Windows can always eject it: WSL keeps an
+# auto-mounted volume open, and the only way to release it is `wsl --shutdown`.
+#
+# These are mounted rw on purpose. An earlier revision of this config appended
+# `ro` to lock WSL out of the Windows filesystem as a guard against an AI agent
+# running a stray `rm -rf`. That was dropped: `ro` is bypassed by the very
+# powershell() bridge in ~/.shell_wslfn that we deliberately keep, so it never
+# stopped an agent -- it only made ordinary Windows-side commands fail with
+# confusing EROFS errors. Accident protection is git commit discipline instead.
+#
+# Adjust the drive list to the machine. To reach a removable drive ad hoc,
+# without rebooting:
+#   sudo mkdir -p /mnt/f && sudo mount -t drvfs 'F:' /mnt/f -o metadata,uid=1000,gid=1000,umask=22
+#   sudo umount /mnt/f        # run this BEFORE ejecting from Windows
+#
+# The mount points must already exist; with automount disabled WSL will not
+# create them for you:
+#   sudo mkdir -p /mnt/c /mnt/d /mnt/e
+C:	/mnt/c	drvfs	metadata,uid=1000,gid=1000,umask=22	0 0
+D:	/mnt/d	drvfs	metadata,uid=1000,gid=1000,umask=22	0 0
+E:	/mnt/e	drvfs	metadata,uid=1000,gid=1000,umask=22	0 0

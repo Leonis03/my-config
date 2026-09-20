@@ -1,0 +1,12 @@
+# ==============================================================================
+# ~/.zshenv -- read by EVERY zsh invocation, including non-interactive ones
+#
+# This is the only startup file that non-interactive zsh reads, so it is the
+# only place where definitions reach scripts and AI coding agents (which run
+# commands through a non-interactive shell).
+#
+# Keep it minimal and side-effect free. Heavy setup (PATH, proxy, daemons,
+# oh-my-zsh) belongs in ~/.shell_common / ~/.zshrc instead.
+# ==============================================================================
+
+[ -f "$HOME/.shell_wslfn" ] && . "$HOME/.shell_wslfn"

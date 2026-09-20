@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Antigravity IDE / VS Code Launcher with Fcitx5 IME for WSLg
+#
+# Deploy to ~/.local/bin/antigravity-ide (chmod +x).
+# $HOME is a runtime shell variable and ships as-is -- do not substitute it.
+#
+# The --disable wayland,waylandim on fcitx5 is mandatory, not cosmetic: WSLg's
+# Weston refuses the zwp_input_method_v1 bind (error 71) and fcitx5 then tears
+# down its whole instance, taking the X11 input method with it. See
+# ../wsl-gui-and-ime.md section 1, pitfall 3.
+
+export DONT_PROMPT_WSL_INSTALL=1
+export GTK_IM_MODULE=fcitx
+export QT_IM_MODULE=fcitx
+export XMODIFIERS=@im=fcitx
+export SDL_IM_MODULE=fcitx
+export GLFW_IM_MODULE=ibus
+
+# 1. Make sure the Fcitx5 daemon is up (X11/DBus mode)
+if ! pgrep -x "fcitx5" >/dev/null 2>&1; then
+    fcitx5 --disable wayland,waylandim -d >/dev/null 2>&1
+    sleep 0.5
+fi
+
+# 2. Query-style arguments run in the foreground
+if [ "$1" = "--version" ] || [ "$1" = "-v" ] || [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "--status" ]; then
+    exec "$HOME/opt/antigravity-ide/bin/antigravity-ide" "$@"
+fi
+
+# 3. Launch the GUI: X11 channel, detached from the terminal, hardware probe
+#    warnings silenced. --ozone-platform=x11 is required -- Electron 39 defaults
+#    to ozone-platform-hint=auto, which picks native Wayland, where no input
+#    method can reach the app.
+setsid "$HOME/opt/antigravity-ide/antigravity-ide" \
+    --ozone-platform=x11 \
+    "$@" >/dev/null 2>&1 < /dev/null &

@@ -1,0 +1,32 @@
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS / Editor artifacts
+.DS_Store
+Thumbs.db
+*.swp
+
+# The account names privacy-gate.sh scans for. Keeping them out of the script
+# is what lets the script itself be published -- see its header.
+tools/.privacy-names
+
+# Credentials must never enter this repo (see wsl-config/README.md)
+*shell_secrets*
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# The placeholder -> real value map used by sync-skills.sh. Same reason as
+# .privacy-names: keeping the values out of the script is what lets the
+# script itself be published.
+tools/.sync-map
+
+# Scratch area: temporary edits, script runs, backups taken before an
+# overwrite. Never committed, never exported by `git archive`, and skipped by
+# privacy-gate.sh -- see README "约定". .gitkeep is tracked so a fresh clone
+# still has the directory.
+tmp/*
+!tmp/.gitkeep

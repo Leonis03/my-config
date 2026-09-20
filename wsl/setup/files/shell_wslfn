@@ -1,0 +1,63 @@
+# ==============================================================================
+# ~/.shell_wslfn -- WSL <-> Windows interop function definitions
+#
+# Pure function definitions only. No PATH changes, no daemons, no side effects,
+# so this stays cheap enough to source from ~/.zshenv (which runs for EVERY zsh
+# invocation, including scripts and non-interactive shells).
+#
+# Sourced by:
+#   ~/.zshenv       -> gives them to non-interactive zsh (scripts, AI agents)
+#   ~/.shell_common -> gives them to interactive bash and zsh
+#
+# Functions, not aliases: aliases are NOT expanded in non-interactive shells,
+# so `alias cmd=...` is invisible to scripts, cron, and AI coding agents.
+# With appendWindowsPath=false these are the only short way to reach Windows.
+# ==============================================================================
+
+[ -n "$_SHELL_WSLFN_LOADED" ] && return 0
+_SHELL_WSLFN_LOADED=1
+
+grep -qi microsoft /proc/version 2>/dev/null || return 0
+
+explorer()   { /mnt/c/Windows/explorer.exe "$@"; }
+cmd()        { /mnt/c/Windows/System32/cmd.exe "$@"; }
+clip()       { /mnt/c/Windows/System32/clip.exe "$@"; }
+notepad()    { /mnt/c/Windows/System32/notepad.exe "$@"; }
+reg()        { /mnt/c/Windows/System32/reg.exe "$@"; }
+rundll32()   { /mnt/c/Windows/System32/rundll32.exe "$@"; }
+powershell() { /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe "$@"; }
+
+explorer.exe()   { explorer "$@"; }
+cmd.exe()        { cmd "$@"; }
+clip.exe()       { clip "$@"; }
+notepad.exe()    { notepad "$@"; }
+reg.exe()        { reg "$@"; }
+rundll32.exe()   { rundll32 "$@"; }
+powershell.exe() { powershell "$@"; }
+
+# PowerShell 7 is optional; only define if actually installed
+if [ -x "/mnt/c/Program Files/PowerShell/7/pwsh.exe" ]; then
+  pwsh()     { "/mnt/c/Program Files/PowerShell/7/pwsh.exe" "$@"; }
+  pwsh.exe() { pwsh "$@"; }
+fi
+
+# ------------------------------------------------------------------------------
+# Reach non-interactive bash too.
+#
+# ~/.zshenv covers every zsh invocation, but bash has no equivalent: a plain
+# `bash -c 'reg ...'` or a `#!/bin/bash` script reads neither ~/.bashrc nor
+# ~/.profile, so the functions above are simply absent and the call dies with
+# `command not found`. BASH_ENV is bash's only hook for that case.
+#
+# Exporting it here means any shell that loaded this file hands the hook to its
+# bash children. Functions are NOT exported (zsh cannot, and `export -f` would
+# leak them into every process); the child re-sources this file instead, which
+# is why _SHELL_WSLFN_LOADED is deliberately a plain variable, not exported.
+#
+# Not covered: bash started with no such parent, e.g. `wsl.exe -e bash script.sh`
+# straight from Windows. Use absolute /mnt/c/... paths there.
+#
+# Guarded so an existing BASH_ENV is never clobbered.
+if [ -z "$BASH_ENV" ] && [ -f "$HOME/.shell_wslfn" ]; then
+  export BASH_ENV="$HOME/.shell_wslfn"
+fi

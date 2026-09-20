@@ -1,0 +1,210 @@
+# ==============================================================================
+# ~/.shell_common -- shell-agnostic configuration shared by bash and zsh
+#
+# Sourced from both ~/.zshrc and ~/.bashrc.
+# RULE: only put lines here that are valid in BOTH shells (POSIX sh style).
+#   - No oh-my-zsh / ZSH_THEME / PROMPT / zstyle        -> ~/.zshrc
+#   - No PS1 / shopt / HISTCONTROL / bash-completion    -> ~/.bashrc
+#   - No `conda init` blocks: the hook differs per shell (shell.zsh vs
+#     shell.bash), so each rc file keeps its own.
+#   - No `${PWD,,}` (bash-only) or `${PWD:l}` (zsh-only); use `tr` instead.
+#
+# Secrets do NOT belong here. Put them in ~/.shell_secrets (chmod 600),
+# which is sourced at the end of this file if present and is git-ignored.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Helpers: idempotent PATH manipulation
+# ------------------------------------------------------------------------------
+_path_prepend() {
+  case ":$PATH:" in
+    *":$1:"*) ;;
+    *) [ -d "$1" ] && PATH="$1:$PATH" ;;
+  esac
+}
+
+_path_append() {
+  case ":$PATH:" in
+    *":$1:"*) ;;
+    *) [ -d "$1" ] && PATH="$PATH:$1" ;;
+  esac
+}
+
+# ------------------------------------------------------------------------------
+# 1. WSL: never start a shell inside a Windows system directory
+#    (portable lowercase -- ${PWD,,} is bash-only, ${PWD:l} is zsh-only)
+# ------------------------------------------------------------------------------
+case "$(printf '%s' "$PWD" | tr '[:upper:]' '[:lower:]')" in
+  /mnt/[a-z]/windows/system32*|/mnt/[a-z]/windows/syswow64*) cd "$HOME" || : ;;
+esac
+
+# ------------------------------------------------------------------------------
+# 2. WSL: explicit Windows interop
+#    Function definitions live in ~/.shell_wslfn, which ~/.zshenv also sources
+#    so that non-interactive zsh (scripts, AI agents) gets them too.
+# ------------------------------------------------------------------------------
+[ -f "$HOME/.shell_wslfn" ] && \. "$HOME/.shell_wslfn"
+
+if grep -qi microsoft /proc/version 2>/dev/null; then
+
+  # VS Code `code` launcher for Remote-WSL (only this one path is added to
+  # PATH -- the whole point of appendWindowsPath=false is to keep PATH clean)
+  #
+  # Never hardcode the Windows account name, and do not assume it equals $USER.
+  # It usually does not. This block used to lead with "/mnt/c/Users/$USER/..."
+  # plus a hardcoded name, and on the machine it was written for that only
+  # worked by accident: the two names differed just in case, and drvfs inherits
+  # NTFS case-insensitivity, so the $USER probe stat()ed the right directory
+  # anyway. Where the names actually differ, every probe misses, both
+  # "Program Files" fallbacks are absent for the default per-user installer,
+  # and `code` silently never reaches PATH -- surfacing much later via
+  # VISUAL="code --wait".
+  #
+  # Order: $USER first (deterministic when several profiles have VS Code), then
+  # every profile, then machine-wide installs. The glob is guarded by
+  # `[ -d /mnt/c/Users ]` because zsh aborts on an unmatched glob in a `for`
+  # list (NOMATCH is on by default) while bash passes the literal through.
+  _vscode_bin=""
+  if [ -d /mnt/c/Users ]; then
+    for _p in "/mnt/c/Users/$USER" /mnt/c/Users/*; do
+      _d="$_p/AppData/Local/Programs/Microsoft VS Code/bin"
+      if [ -d "$_d" ] && { [ -x "$_d/code" ] || [ -f "$_d/code.cmd" ]; }; then
+        _vscode_bin="$_d"
+        break
+      fi
+    done
+  fi
+  for _d in "/mnt/c/Program Files/Microsoft VS Code/bin" \
+            "/mnt/c/Program Files (x86)/Microsoft VS Code/bin"; do
+    [ -n "$_vscode_bin" ] && break
+    if [ -d "$_d" ] && { [ -x "$_d/code" ] || [ -f "$_d/code.cmd" ]; }; then
+      _vscode_bin="$_d"
+    fi
+  done
+
+  # Last resort: ask Windows for the real profile path. One interop round trip
+  # (cmd.exe ~0.06s, vs ~0.21s for powershell.exe), cached so this costs nothing
+  # on every later shell. Use %USERPROFILE%, never %USERNAME%: the profile
+  # directory keeps its original spelling after an account rename, and domain
+  # accounts get "user.DOMAIN". `cd /mnt/c` because cmd.exe refuses a UNC cwd.
+  #
+  # Two passes, because a cache with no invalidation is its own silent-failure
+  # mode: carry these dotfiles to another machine, or rename the account, and a
+  # stale value would be trusted forever. Pass 1 uses whatever is cached; if it
+  # no longer resolves to a real directory, the file is dropped and pass 2
+  # re-derives it once.
+  if [ -z "$_vscode_bin" ] && [ -d /mnt/c ]; then
+    _cache="$HOME/.cache/wsl-userprofile"
+    for _try in 1 2; do
+      if [ ! -s "$_cache" ]; then
+        mkdir -p "$HOME/.cache"
+        ( cd /mnt/c && /mnt/c/Windows/System32/cmd.exe /c 'echo %USERPROFILE%' \
+          < /dev/null 2>/dev/null | tr -d '\0\r' ) > "$_cache" 2>/dev/null
+      fi
+      _winhome="$(wslpath -u "$(cat "$_cache" 2>/dev/null)" 2>/dev/null)"
+      if [ -n "$_winhome" ] && [ -d "$_winhome" ]; then
+        _d="$_winhome/AppData/Local/Programs/Microsoft VS Code/bin"
+        { [ -x "$_d/code" ] || [ -f "$_d/code.cmd" ]; } && _vscode_bin="$_d"
+        break
+      fi
+      rm -f "$_cache"
+    done
+    unset _cache _try _winhome
+  fi
+
+  [ -n "$_vscode_bin" ] && _path_append "$_vscode_bin"
+  unset _d _p _vscode_bin
+
+  # Default browser for `gh auth login`, xdg-open, etc.
+  # Guarded: without this, removing wslu leaves BROWSER pointing at nothing.
+  if command -v wslview >/dev/null 2>&1; then
+    export BROWSER=wslview
+  fi
+fi
+
+# ------------------------------------------------------------------------------
+# 3. PATH
+# ------------------------------------------------------------------------------
+_path_prepend "$HOME/.local/bin"          # Antigravity CLI (agy), pipx, uv tools
+
+export PNPM_HOME="$HOME/.local/share/pnpm"
+_path_prepend "$PNPM_HOME/bin"
+
+# Guarded: exporting a JAVA_HOME that does not exist breaks tools that trust it
+if [ -d /usr/lib/jvm/default-java ]; then
+  export JAVA_HOME=/usr/lib/jvm/default-java
+  _path_prepend "$JAVA_HOME/bin"
+fi
+
+export PATH
+
+# ------------------------------------------------------------------------------
+# 4. Toolchains
+# ------------------------------------------------------------------------------
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+# ------------------------------------------------------------------------------
+# 5. Proxy (Clash Verge Rev, listening on 7897)
+# ------------------------------------------------------------------------------
+export host_ip="127.0.0.1"
+export proxy_port="7897"
+
+export HTTP_PROXY="http://${host_ip}:${proxy_port}"
+export HTTPS_PROXY="http://${host_ip}:${proxy_port}"
+export http_proxy="http://${host_ip}:${proxy_port}"
+export https_proxy="http://${host_ip}:${proxy_port}"
+
+export ALL_PROXY="socks5h://${host_ip}:${proxy_port}"
+export all_proxy="socks5h://${host_ip}:${proxy_port}"
+
+# Spell these out; do NOT abbreviate to a wildcard like "127.*".
+# Python's urllib.request.proxy_bypass_environment does not implement wildcard
+# matching, so no_proxy="127.*" makes urllib send requests to 127.0.0.1:<port>
+# through the proxy. When the local port is closed the proxy answers with an
+# empty HTTP 502, which reads like an ordinary request failure rather than
+# "nothing is listening" -- an easy hour to lose. A bare "*" is special-cased
+# and does bypass everything, but "127.*" does not. Verified 2026-09-19 on
+# CPython 3.12.14.
+export NO_PROXY="localhost,127.0.0.1,::1,.local"
+export no_proxy="localhost,127.0.0.1,::1,.local"
+
+# ------------------------------------------------------------------------------
+# 6. Editor & terminal
+# ------------------------------------------------------------------------------
+export VISUAL="code --wait"
+export EDITOR="$VISUAL"
+export COLORTERM=truecolor
+
+# ------------------------------------------------------------------------------
+# 7. Fcitx5 input method
+# ------------------------------------------------------------------------------
+export GTK_IM_MODULE=fcitx
+export QT_IM_MODULE=fcitx
+export XMODIFIERS=@im=fcitx
+export SDL_IM_MODULE=fcitx
+export GLFW_IM_MODULE=ibus
+
+# ------------------------------------------------------------------------------
+# 8. D-Bus / gnome-keyring (Antigravity CLI stores its token here)
+#    The guard matters: without it every subshell would spawn a new daemon.
+# ------------------------------------------------------------------------------
+# The command -v guards matter on Fedora: dbus-launch ships in dbus-x11 and
+# gnome-keyring-daemon in gnome-keyring, neither of which is present in the
+# Fedora WSL image. Without the guard every interactive shell prints
+# "dbus-launch: command not found" (the keyring line is already silenced by
+# its own 2>/dev/null, the dbus-launch one was not).
+if command -v dbus-launch >/dev/null 2>&1; then
+  if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
+    eval "$(dbus-launch --sh-syntax)"
+  fi
+fi
+if command -v gnome-keyring-daemon >/dev/null 2>&1; then
+  eval "$(gnome-keyring-daemon --start --components=secrets 2>/dev/null)"
+  export GNOME_KEYRING_CONTROL
+fi
+
+# ------------------------------------------------------------------------------
+# 9. Secrets (optional, never committed)
+# ------------------------------------------------------------------------------
+[ -f "$HOME/.shell_secrets" ] && \. "$HOME/.shell_secrets"

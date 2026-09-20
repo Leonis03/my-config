@@ -1,0 +1,18 @@
+# Deploy to /etc/systemd/system/wsl-binfmt-guard.service
+#
+# Why this exists: binfmt_misc is GLOBAL to the WSL VM kernel -- every distro in
+# the VM shares one registration table. `wsl --terminate <other-distro>` removes
+# the WSLInterop handler for EVERYONE, and nothing in this distro puts it back.
+# Interop then fails with "exec format error", and it cannot repair itself:
+# wsl.exe is a Windows binary, so you cannot fix interop through interop.
+#
+# The check is surgical on purpose -- it only adds WSLInterop when absent, so it
+# never disturbs other binfmt handlers (qemu-user-static, python, ...).
+[Unit]
+Description=Re-register the WSL interop binfmt handler if it went missing
+Documentation=man:binfmt.d(5)
+ConditionPathIsMountPoint=/proc/sys/fs/binfmt_misc
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c '[ -e /proc/sys/fs/binfmt_misc/WSLInterop ] || echo ":WSLInterop:M::MZ::/init:PF" > /proc/sys/fs/binfmt_misc/register'

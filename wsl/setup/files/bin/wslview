@@ -1,0 +1,59 @@
+#!/bin/sh
+# ==============================================================================
+# wslview -- minimal stand-in for the `wslview` command from the wslu package.
+#
+# Why this file exists:
+#   1. wslu is not packaged in the Fedora repositories, so `wslview` is simply
+#      absent there; without it $BROWSER is unset and `gh auth login` cannot
+#      open the authorization page.
+#   2. It has to be a real executable, NOT a shell function. `gh` resolves
+#      $BROWSER through github.com/cli/browser, which splits the value with
+#      go-shellquote and then calls exec.LookPath() on argv[0]. No shell is
+#      ever involved, so a function defined in ~/.shell_wslfn is invisible to
+#      it and the launch fails with "executable file not found in $PATH".
+#
+# Because this script keeps the name `wslview`, the existing guard in
+# ~/.shell_common
+#       if command -v wslview >/dev/null 2>&1; then export BROWSER=wslview; fi
+# picks it up unchanged -- that file stays distro-agnostic.
+#
+# Opens a URL or a local path with the Windows default handler.
+# ==============================================================================
+
+set -u
+
+PS='/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe'
+
+if [ $# -lt 1 ]; then
+    echo "usage: wslview <url|path>" >&2
+    exit 2
+fi
+
+if [ ! -x "$PS" ]; then
+    echo "wslview: $PS not found or not executable" >&2
+    exit 127
+fi
+
+target=$1
+
+# A local file or directory has to be handed to Windows as a Windows path;
+# a URL must be passed through untouched.
+if [ -e "$target" ]; then
+    target=$(wslpath -w -- "$target") || exit 1
+fi
+
+# PowerShell single-quoted strings do not interpolate, so doubling an embedded
+# single quote is the only escaping required. This keeps URLs containing
+# & ? # $ ( ) safe.
+escaped=$(printf '%s' "$target" | sed "s/'/''/g")
+
+# cd /mnt/c   : a Windows process that inherits a \\wsl.localhost working
+#               directory triggers the UNC warning and silently falls back to
+#               C:\Windows.
+# < /dev/null : the /init interop bridge blocks waiting on stdin otherwise.
+# -NoProfile -ExecutionPolicy Bypass : content reached over the WSL share
+#               carries an untrusted-zone flag.
+cd /mnt/c || exit 1
+
+exec "$PS" -NoProfile -ExecutionPolicy Bypass \
+    -Command "Start-Process -FilePath '$escaped'" < /dev/null

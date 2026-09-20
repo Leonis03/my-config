@@ -1,0 +1,4 @@
+interface:
+  display_name: "Compress WSL Space"
+  short_description: "Compact local WSL VHDX disk usage safely."
+  default_prompt: "Check how much WSL VHDX space can be reclaimed, then trim, stop WSL, compact the VHDX, and verify the distro starts."

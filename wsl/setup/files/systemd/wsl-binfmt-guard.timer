@@ -1,0 +1,12 @@
+# Deploy to /etc/systemd/system/wsl-binfmt-guard.timer
+# Enable with: sudo systemctl enable --now wsl-binfmt-guard.timer
+[Unit]
+Description=Periodically verify the WSL interop binfmt handler is registered
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=30s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
