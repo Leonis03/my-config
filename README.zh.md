@@ -4,7 +4,15 @@
 
 一台 WSL2 开发机的配置、技能与踩坑记录。
 
-环境是 **Windows 11 + WSL2 / Ubuntu 24.04 + zsh**，主力工具是 Claude Code 与 Antigravity CLI，网络走本地代理。
+环境是 **Windows 11 + WSL2 + zsh**，主力工具是 Claude Code 与 Antigravity CLI，网络走本地代理。
+
+> **迁移中**：**Ubuntu 24.04** 是此前的主力发行版，现在日常工作已转到 **Fedora 44**，正在把配置向它对齐。
+> 两边并存：`wsl -l -v` 里 Ubuntu 仍是默认（那个 `*`），但实际敲命令的地方是 Fedora。
+> 四层 shell 配置的核心三个（`.zshenv` / `.shell_wslfn` / `.shell_common`）两边同哈希，剩下的差异要么是
+> 发行版本身决定的（Fedora 的 fcitx5 块、`/etc/bashrc`），要么还在收敛。
+> 具体差异与「哪些可避免、哪些不可避免」见 [`wsl/distro-differences.md`](wsl/distro-differences.md)。
+>
+> 文档里写 Ubuntu 的地方多数仍然成立——差异都在 `distro-differences.md` 里单独记着。
 内容分两类：**能直接复制部署的配置文件**，以及**排查过程留下的结论**——后者往往比配置本身更值钱，因为它记录了「为什么是这样」。
 
 > 所有路径、用户名、机器标识、端口与时间戳均已脱敏（`$HOME`、`<your-linux-user>`、
@@ -209,8 +217,23 @@ cp 即可    sync-skills.sh deploy 查 tools/.sync-map 渲染成真值
   `tmp/.gitkeep` 是被跟踪的，新 clone 下来目录就在。
 - **发布前跑 `bash tools/privacy-gate.sh`**。它只覆盖已知形态，跑通不等于安全——`wsl/storage/` 是原始取证输出，必须人工读。
   账户名**不写在脚本里**（写进去，这个脚本自己就成了泄露源），运行时从 `tools/.privacy-names`（已 gitignore）读取。
-- **导出公开副本用 `git archive`，不要 `cp -r`**。`cp -r` 会把靠 gitignore 挡住的本地私有文件一并复制进公开目录：
-  `git archive HEAD | tar -x -C ../my-config-public`
+- **导出公开副本用 `git archive`，不要 `cp -r`**。`cp -r` 会把靠 gitignore 挡住的本地私有文件一并复制进公开目录。
+  本仓库是**私有主仓 + 公开快照**的双仓结构，公开仓自带 `.git`，所以同步流程固定为四步：
+
+  ```bash
+  cd ~/dev/my-config                                   # 公开仓
+  find . -mindepth 1 -maxdepth 1 -not -name '.git' -exec rm -rf {} +
+  ( cd ../my-config-private && git archive HEAD ) | tar -x -C .
+  git add -A && git commit && git push
+  ```
+
+  **第二步「清空」不能省。** 不清空的话，私有仓里删掉的文件在公开仓会残留——`tar -x` 只覆盖不删除。
+  而清空必须 `-not -name '.git'`，否则连仓库本身一起没了。
+  **第三步用 `git archive` 而不是 `cp -r`**，这样 `tools/.privacy-names`、`tools/.sync-map`、`tmp/` 天然进不去。
+  推送前核一遍：`find . -type f -not -path './.git/*' | git check-ignore --stdin`，应无输出。
+
+  公开仓走**正常历史**，普通 `commit` + `push`，不要 `--amend` 强推——它上线后任何人 clone 过就会被打乱。
+  （历史上有两次 amend：一次补许可证、一次改提交消息格式，都在无人 clone 的窗口内。）
 - **凭据不进版本库**。需要环境变量形式的 token 时放 `~/.shell_secrets`（`chmod 600`），由 `~/.shell_common` 末尾自动加载。
 
 ---

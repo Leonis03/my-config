@@ -4,11 +4,23 @@
 
 Configuration, skills, and hard-won debugging notes from one WSL2 development machine.
 
-The environment is **Windows 11 + WSL2 / Ubuntu 24.04 + zsh**, driven mainly by Claude Code
-and the Antigravity CLI, with networking through a local proxy. Two kinds of content live
-here: **config files you can deploy as-is**, and **conclusions left behind by debugging** --
-the latter is usually worth more than the config itself, because it records *why* things are
-the way they are.
+The environment is **Windows 11 + WSL2 + zsh**, driven mainly by Claude Code and the
+Antigravity CLI, with networking through a local proxy. Two kinds of content live here:
+**config files you can deploy as-is**, and **conclusions left behind by debugging** -- the
+latter is usually worth more than the config itself, because it records *why* things are the
+way they are.
+
+> **Migration in progress.** **Ubuntu 24.04** was the primary distro; day-to-day work has
+> moved to **Fedora 44** and the configuration is being aligned to it. Both are installed
+> side by side: Ubuntu is still the WSL default (the `*` in `wsl -l -v`), but commands are
+> actually typed in Fedora. The three core shell-config layers (`.zshenv`, `.shell_wslfn`,
+> `.shell_common`) hash identically on both; what still differs is either dictated by the
+> distro (Fedora's fcitx5 block, its `/etc/bashrc` chain) or still converging. The full
+> comparison, split into what is avoidable and what is not, is in
+> [`wsl/distro-differences.md`](wsl/distro-differences.md).
+>
+> Most references to Ubuntu elsewhere in these docs still hold; where they do not, the
+> difference is recorded in that file.
 
 > Every path, username, machine identifier, port and timestamp is redacted (`$HOME`,
 > `<your-linux-user>`, `<your-windows-user>`, `<vm-1>`, `<proxy-port>`, `<ssh-port>`, `<t-created>`), and email
@@ -251,8 +263,27 @@ cache lacked invalidation (now a two-pass self-heal); and the gate only covers k
   The account names are **not in the script** (putting them there would make the script itself
   the leak); they are read at run time from `tools/.privacy-names`, which is gitignored.
 - **Export a public copy with `git archive`, not `cp -r`.** `cp -r` copies the local private
-  files that gitignore was hiding straight into the public directory:
-  `git archive HEAD | tar -x -C ../my-config-public`
+  files that gitignore was hiding straight into the public directory. This repo is a
+  **private primary plus a public snapshot**; the public clone carries its own `.git`, so
+  syncing is always these four steps:
+
+  ```bash
+  cd ~/dev/my-config                                   # the public clone
+  find . -mindepth 1 -maxdepth 1 -not -name '.git' -exec rm -rf {} +
+  ( cd ../my-config-private && git archive HEAD ) | tar -x -C .
+  git add -A && git commit && git push
+  ```
+
+  **Do not skip the wipe.** `tar -x` overwrites but never deletes, so a file removed in the
+  private repo would linger in the public one. The wipe needs `-not -name '.git'` or it takes
+  the repository with it. **Use `git archive`, not `cp -r`**, so `tools/.privacy-names`,
+  `tools/.sync-map` and `tmp/` cannot get in. Check before pushing:
+  `find . -type f -not -path './.git/*' | git check-ignore --stdin` should print nothing.
+
+  The public repo keeps **normal history** -- plain `commit` and `push`, never `--amend` plus
+  a force push, which would break anyone who has cloned it. (Two amends happened early on: one
+  to add the licenses, one to reformat the commit message, both before anyone could have
+  cloned it.)
 - **Credentials never enter version control.** Tokens that need to be environment variables go
   in `~/.shell_secrets` (`chmod 600`), loaded automatically at the end of `~/.shell_common`.
 

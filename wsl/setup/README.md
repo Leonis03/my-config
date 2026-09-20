@@ -3,6 +3,10 @@
 > **用途**：在一台**全新的 Windows 机器**上，从零搭出与台式机（`<your-linux-user>@Ubuntu-24.04`）等价的 WSL2 开发环境。
 >
 > **使用方式**：可以人工照做，也可以把本文件整个发给 AI Agent（Claude Code / Antigravity / Codex），让它按步骤执行并汇报验证结果。
+>
+> **本文以 Ubuntu 24.04 为基准**，它是此前的主力发行版。日常工作现已转到 Fedora 44，配置正在向它对齐；
+> 步骤本身大多通用，**发行版特定的差异单独记在** [`../distro-differences.md`](../distro-differences.md)
+> 第四节（包名、`chsh`、系统骨架、corepack、wslu 缺失、fcitx5 绕路），照本文做 Fedora 时对照那一节。
 
 **参考环境（2026-09-20 实测）**
 

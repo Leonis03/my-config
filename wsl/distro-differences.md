@@ -2,6 +2,38 @@
 
 同一台宿主机、同一个 WSL 内核下，不同发行版的行为差异。本文只收**实测过**的结论。
 
+> **迁移背景**：Ubuntu 24.04 是此前的主力，日常工作现已转到 Fedora 44，两者并存。
+> `wsl -l -v` 里 Ubuntu 仍是默认（那个 `*` 标的是**默认**不是**当前**，见
+> [`../agent/skills/wsl-windows-command/references/cross-distro.md`](../agent/skills/wsl-windows-command/references/cross-distro.md) 第 1 节）。
+
+---
+
+## 零、两边配置的对齐现状（2026-09-21 实测）
+
+用 `/mnt/wsl` bind mount 逐文件比对哈希的结果。
+
+**已对齐**（两边同哈希）：`/etc/wsl.conf` · `~/.zshenv` · `~/.shell_wslfn` · `~/.shell_common` ·
+`~/.profile` · `~/.claude/settings.json` · `~/.claude/CLAUDE.md` · `~/.gemini/config/AGENTS.md` ·
+三个 systemd binfmt 单元
+
+四层 shell 配置的核心三个（`.zshenv` / `.shell_wslfn` / `.shell_common`）纹丝不动，是分层设计在起作用——
+跨发行版通用的东西都抽进了这三个文件。
+
+**仍不同，且不可避免**：
+
+| 文件 | 差异 | 为什么消不掉 |
+| :--- | :--- | :--- |
+| `~/.zshrc` | Fedora 多 52 行 fcitx5 块 | systemd 259 在 WSL 起不了 `user@1000.service`，`systemctl --user` 是死的，输入法只能从 shell 拉起（见第四节 4.8） |
+| `~/.bashrc` | Fedora 多 `[ -f /etc/bashrc ] && . /etc/bashrc` | Fedora/RHEL 靠 `/etc/bashrc` 加载 `/etc/profile.d/*.sh`，Debian 没这个文件。它自带 `-f` 守卫所以两边都放也无害，只是目前没放 |
+| `~/.local/bin/wslview` | 仅 Fedora 有 | Fedora 镜像没有 wslu，而 `BROWSER` 不能是 shell 函数（见 4.7） |
+| `/etc/fonts/local.conf` | 仅 Ubuntu 有 | Fedora 的输入法/字体走 4.8 的另一条路 |
+
+**曾经不同、已收敛**：conda 块（Ubuntu 侧原本硬编码 `/home/<user>`，已统一成 `$HOME`）· Antigravity 的
+PATH 块（重复过两次、且硬编码）· binfmt 守护单元（Ubuntu 侧是旧版注释）。
+
+**不值得动**：`/etc/fstab` 差一行 Debian 出厂注释，`~/.gitconfig` 只是节的排列顺序不同（`git config --list`
+排序后逐行相同）。
+
 ---
 
 ## 一、systemd ≥ 256 在 WSL 上起不了 user session
