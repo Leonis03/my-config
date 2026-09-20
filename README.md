@@ -42,6 +42,8 @@ way they are.
 | Set up Claude Code | [`agent/claude-code/`](agent/claude-code/) |
 | Find a ready-made skill, or sync skills to this machine | [`agent/skills/`](agent/skills/) -- 14 of them; deploy with `tools/sync-skills.sh`, not `cp` |
 | Look up one specific trap | See the pitfall index below |
+| Understand the writing and publishing rules here | [`conventions.md`](conventions.md) -- ASCII boundaries, naming, `tmp/`, the pre-publish gate, the two-repo sync |
+| Understand the placeholder scheme: no real usernames in the repo, yet everything resolves on deploy | [`redaction.md`](redaction.md) -- the three classes of value and the two pipelines |
 
 ---
 
@@ -88,7 +90,7 @@ off for Chinese documents); and two scripts --
 [`tools/sync-skills.sh`](tools/sync-skills.sh) (rendered skill deployment and verification).
 
 `tmp/` is a **scratch area**, gitignored. Every temporary edit, trial script run, and
-pre-overwrite backup happens in there. All three are covered under "Conventions" below.
+pre-overwrite backup happens in there. All three are covered in [`conventions.md`](conventions.md).
 
 ---
 
@@ -131,161 +133,6 @@ Entries that took real time to diagnose and whose conclusion is not obvious.
 | **The input method will not bind under Wayland** | An Electron app runs fine but cannot type Chinese, and no flag helps. Weston reserves `input_method` for its own IME client and WSLg does not run one; worse, fcitx5 hitting error 71 **exits the whole process**, taking the X11-side input method with it | [`wsl/gui-ime/`](wsl/gui-ime/) sections 1 and 9 |
 | **`wmctrl` is useless under WSLg** | Window-placement scripts silently do nothing. The Weston WM does not export `_NET_CLIENT_LIST`, so `wmctrl -l` always fails -- and the script uses exactly that to find windows | [`wsl/gui-ime/`](wsl/gui-ime/) section 8 |
 | **The machine changed, the document did not** | A "deployment summary" whose display parameters, file roles and fixes all disagree with this machine. Comparing first-run traces (`Crashpad/client_id`) against the document's own date proves it was never written on this machine at all | [`wsl/gui-ime/`](wsl/gui-ime/) sections 5 and 8 |
-
----
-
-## Redaction and portability: how to write a value
-
-This repo has to satisfy two things that look contradictory: **no real usernames in the
-tracked bytes**, and **every path still resolves on whatever machine it is deployed to**. The
-method is to classify each value by *how it becomes a real value on the target machine* --
-and the test is **whether a shell will expand it**, not what kind of file it appears in.
-
-```
-        writing a "name-shaped" value into a tracked file
-                              |
-                              v
-                 +------------------------+
-                 | Will a shell expand it? |
-                 +-----------+------------+
-                  yes       |        no
-          +-----------------+        +-------------------+
-          v                                              v
- +------------------+                      +--------------------------+
- | (1) runtime var  |                      | Can it be DETECTED on    |
- |                  |                      | the target machine?      |
- | shipped as-is:   |                      +------------+-------------+
- |   $HOME  $USER   |                          yes      |      no
- |                  |              +--------------------+       |
- | expanded by:     |              v                            v
- | the target       |   +-------------------------+  +--------------------+
- | machine's shell  |   | (2) runtime detection   |  | (3) placeholder    |
- |                  |   |                         |  |                    |
- | Linux side only. |   | detection code shipped  |  | shipped as:        |
- | The Windows      |   | as-is:                  |  |   <your-home>      |
- | account name is  |   |  glob /mnt/c/Users/*/   |  |   <your-windows-   |
- | NOT $USER        |   |  %USERPROFILE%+wslpath  |  |    user>           |
- |                  |   |  ~/.cache fallback,     |  |                    |
- |                  |   |    with self-healing    |  | substituted by:    |
- |                  |   |                         |  | sync-skills.sh     |
- |                  |   | resolved by: the target |  | reading .sync-map  |
- |                  |   | machine itself          |  |                    |
- +------------------+   +-------------------------+  +--------------------+
-                                                              |
-                         for places a shell never expands ----+
-                         (JSON, Python string literals)
-```
-
-The two directions:
-
-```
-[PUBLISHING]  working copy --> public repo
-       |
-       |  tracked bytes contain only forms (1)(2)(3) -- never a real name
-       v
-  privacy-gate.sh        the account names are NOT in the script: putting them
-  reads .privacy-names   there would make the script itself the leak. Skips
-  (gitignored)           tmp/. Covers known shapes only: passing != safe
-       | pass
-       v
-  git archive HEAD | tar -x -C ../my-config-public
-       +-- not cp -r: that copies the local private files gitignore was hiding
-
-[DEPLOYING]  repo --> this machine (Fedora / Ubuntu / a rented GPU box)
-       |
-  +----+----+
-  v         v
-(1)(2)     (3)
-plain cp   sync-skills.sh deploy, substituting from tools/.sync-map
-resolved   verification compares the SUBSTITUTED bytes, so "hashes match"
-on target  means "repo == deployed copy, modulo redaction"
-```
-
-| Class | Instances | Why it belongs there |
-| :--- | :--- | :--- |
-| (1) runtime variable | `$HOME`; the `"/mnt/c/Users/$USER"` first probe in `shell_common` | A shell expands it, and it is always right on the Linux side |
-| (2) runtime detection | `glob("/mnt/c/Users/*/...")` in `cjk_font.py`, the globs for `WT_SETTINGS` and the `wt.exe` alias, fontconfig generation, `%USERPROFILE%` + `wslpath`, the `~/.cache/wsl-userprofile` fallback | No shell variable can give you the Windows account name |
-| (3) placeholder | `<your-home>` in JSON (only two lines left in the whole repo), `<your-windows-user>` covered by `.sync-map` | A shell does not expand anything in those positions |
-
-The design rests on two gitignored runtime files: `tools/.privacy-names` (the real names the
-gate scans for) and `tools/.sync-map` (placeholder to real value). Both exist for the same
-reason -- **keeping the real values in a runtime file is what lets the scripts themselves be
-published**.
-
-Three known weak spots, each with its own row in the pitfall index: the classification can be
-chosen wrong and fail silently (`$USER` colliding with drvfs case-insensitivity); the fallback
-cache lacked invalidation (now a two-pass self-heal); and the gate only covers known shapes.
-
----
-
-## Conventions
-
-- **These surfaces are pure ASCII only**: directory and file names; system and tool config
-  files (**including their comments**, which are written in English); every skill's YAML
-  frontmatter (especially `description`, which loads every session and participates in
-  trigger matching). Prose docs (`README.zh.md`, `references/*.md`, everything below a
-  skill's frontmatter) are in Chinese. Non-ASCII in the wrong place fails **silently and far
-  from its cause** -- across the WSL/Windows boundary, in archives, in shell and harness
-  parsing.
-- **Markdown filenames are lowercase kebab-case**: `wsl-gui-and-ime.md` -- no capitals,
-  underscores or spaces. Forensic records and point-in-time snapshots get a `-YYYYMMDD`
-  suffix (`etc-diff-analysis-20260330.md`, `pnpm-npm-cleanup-20260920.md`); process docs and
-  evergreen docs do not. The only exceptions are **protocol filenames**: `README.md`,
-  `README.zh.md`, `SKILL.md`, `SKILL.zh.md`, `CLAUDE.md`, `TROUBLESHOOTING.md` -- tools and
-  harnesses look these up literally, so renaming them breaks things.
-- **The root README is bilingual**: `README.md` is English (what GitHub renders by default),
-  `README.zh.md` is the canonical Chinese. Changes land in the Chinese version first, then
-  get synced to English -- the pitfall index is compressed debugging conclusions, and those
-  are worth getting exactly right in the author's first language before translating.
-  Subdirectory READMEs remain Chinese-only.
-- **Python goes through `uv`, pinned to 3.12**. The system `/usr/bin/python3` is reserved for
-  Ubuntu's apt packages; leave it alone.
-- **Install skills with `cp`, never `ln -s`**. This tree gets moved between machines, file
-  systems and operating systems, and symlinks do not survive that.
-- **Sync skills with `bash tools/sync-skills.sh`, not a bare `cp` either.** The repo says
-  `<your-home>`, `CourseName` and similar placeholders; the script expands them to real values
-  when writing `~/.claude/skills/` and `~/.gemini/config/skills/`, and compares the
-  **substituted** bytes when verifying -- so "the hashes match" means "repo == deployed copy,
-  modulo redaction". Running it with no arguments is a read-only check. How to write a home
-  directory depends on **whether a shell will expand it**: if it will, write `$HOME` (a
-  runtime variable shipped as-is, not a placeholder); only where it will not do you write
-  `<your-home>` -- just two lines of JSON left in the whole repo. See
-  [`agent/skills/README.md`](agent/skills/README.md).
-- **Do temporary things in `tmp/`**: backup copies taken before an edit, intermediate script
-  output, snippets you want to try, raw command output. Not scattered across the repo root,
-  and not in the system `/tmp` either (it is gone after a reboot, right when you want to look
-  again tomorrow). The directory is gitignored, `git archive` will not export it, and
-  `privacy-gate.sh` **skips** it -- so it can hold real paths and account names without
-  turning the gate red every day. `tmp/.gitkeep` is tracked, so a fresh clone still has the
-  directory.
-- **Run `bash tools/privacy-gate.sh` before publishing.** It only covers known shapes; passing
-  is not the same as safe -- `wsl/storage/` is raw forensic output and has to be read by hand.
-  The account names are **not in the script** (putting them there would make the script itself
-  the leak); they are read at run time from `tools/.privacy-names`, which is gitignored.
-- **Export a public copy with `git archive`, not `cp -r`.** `cp -r` copies the local private
-  files that gitignore was hiding straight into the public directory. This repo is a
-  **private primary plus a public snapshot**; the public clone carries its own `.git`, so
-  syncing is always these four steps:
-
-  ```bash
-  cd ~/dev/my-config                                   # the public clone
-  find . -mindepth 1 -maxdepth 1 -not -name '.git' -exec rm -rf {} +
-  ( cd ../my-config-private && git archive HEAD ) | tar -x -C .
-  git add -A && git commit && git push
-  ```
-
-  **Do not skip the wipe.** `tar -x` overwrites but never deletes, so a file removed in the
-  private repo would linger in the public one. The wipe needs `-not -name '.git'` or it takes
-  the repository with it. **Use `git archive`, not `cp -r`**, so `tools/.privacy-names`,
-  `tools/.sync-map` and `tmp/` cannot get in. Check before pushing:
-  `find . -type f -not -path './.git/*' | git check-ignore --stdin` should print nothing.
-
-  The public repo keeps **normal history** -- plain `commit` and `push`, never `--amend` plus
-  a force push, which would break anyone who has cloned it. (Two amends happened early on: one
-  to add the licenses, one to reformat the commit message, both before anyone could have
-  cloned it.)
-- **Credentials never enter version control.** Tokens that need to be environment variables go
-  in `~/.shell_secrets` (`chmod 600`), loaded automatically at the end of `~/.shell_common`.
 
 ---
 
