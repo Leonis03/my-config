@@ -1,0 +1,11 @@
+Windows Registry Editor Version 5.00
+
+; Minimal policy: notify before download/install, keep driver updates allowed.
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU]
+"AUOptions"=dword:00000002
+"NoAutoUpdate"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate]
+"DisableWindowsUpdateAccess"=-
+"DoNotConnectToWindowsUpdateInternetLocations"=-

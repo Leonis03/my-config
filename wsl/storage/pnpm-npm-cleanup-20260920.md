@@ -98,6 +98,19 @@ npm cache clean --force    # 若仍在用 npm/npx
 rm -rf ~/.npm/_npx
 ```
 
+#### 升级全局包时会被 postinstall 拦住
+
+pnpm 10 起默认**不执行**依赖的生命周期脚本（`postinstall` 等），这是为了防供应链攻击。代价是某些包装不全——Claude Code 的 `postinstall` 要下原生组件，被拦掉后命令能装上却跑不起来。
+
+```bash
+pnpm update -g --latest                                          # 会被静默拦住
+pnpm update -g --latest --allow-build=@anthropic-ai/claude-code  # 显式放行
+```
+
+`--allow-build` 按**包名**放行，是白名单不是开关，所以不会把其它依赖的脚本一起放开。要长期生效可以写进 `package.json` 的 `pnpm.onlyBuiltDependencies`，全局包的场景直接带参数更省事。
+
+坑在于**它不报错**：`pnpm` 只在输出里提一句 build 被忽略，退出码 0，看起来装成功了。故障要等到真正运行那个命令时才出现。本机 pnpm 11.27.0 仍是这个行为。
+
 ### 3.3 一次性遗留清理（换机器 / 首次执行时用）
 
 只在还残留 pnpm ≤10 时代目录的机器上需要。先确认现役路径，再删：

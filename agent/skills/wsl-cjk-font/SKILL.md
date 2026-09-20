@@ -176,6 +176,43 @@ def cv2_draw_chinese(cv2_bgr_img, text, pos, font_size=18, color_bgr=(255, 255, 
 | **4 (Linux OpenSource)** | **WenQuanYi Micro Hei** (文泉驿) | `/usr/share/fonts/truetype/wqy/wqy-microhei.ttc` | Standard Ubuntu/Debian CJK package (`fonts-wqy-microhei`) |
 | **5 (Linux Google)** | **Noto Sans CJK SC** (思源黑体) | `/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc` | High coverage open-source font (`fonts-noto-cjk`) |
 
+### When the host has no `simhei.ttf` at all
+
+Candidate 3 assumes the Windows side still has the Chinese font package. On a machine where
+the language feature was removed or fonts were swapped, `/mnt/c/Windows/Fonts/simhei.ttf`
+simply does not exist -- and a missing file looks exactly like a wrong path. Check which one
+it is first:
+
+```bash
+ls -la /mnt/c/Windows/Fonts/simhei.ttf /mnt/c/Windows/Fonts/msyh.ttc 2>&1
+```
+
+Reinstalling is a **Windows-side** operation (elevated PowerShell):
+
+```powershell
+Add-WindowsCapability -Online -Name "Language.Fonts.Hans~~~und-HANS~0.0.1.0"
+```
+
+That pulls from Microsoft's servers and fails repeatedly on a flaky connection. To install
+offline, get the `Languages and Optional Features for Windows 11` ISO from
+my.visualstudio.com, mount it, and point `-Source` at it:
+
+```powershell
+Add-WindowsCapability -Online `
+  -Name "Language.Fonts.Hans~~~und-HANS~0.0.1.0" `
+  -Source "<drive>:\LanguagesAndOptionalFeatures" `
+  -LimitAccess
+```
+
+**`-LimitAccess` is not optional.** Without it the command still contacts Windows Update
+first even though `-Source` was given, which defeats the point of preparing an offline copy.
+
+No WSL restart is needed afterwards -- drvfs sees the new file immediately -- but matplotlib
+caches its font list, so `rm -rf ~/.cache/matplotlib` before retrying.
+
+If you would rather not touch Windows, candidates 4 and 5 are enough: Noto Sans CJK SC is
+perfectly adequate for academic figures.
+
 ---
 
 ## 6. Verification Checklist

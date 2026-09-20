@@ -175,6 +175,36 @@ def cv2_draw_chinese(cv2_bgr_img, text, pos, font_size=18, color_bgr=(255, 255, 
 | **4（Linux 开源）** | **文泉驿微米黑** (`WenQuanYi Micro Hei`) | `/usr/share/fonts/truetype/wqy/wqy-microhei.ttc` | Ubuntu/WSL 基础包 (`fonts-wqy-microhei`) |
 | **5（思源系列）** | **思源黑体** (`Noto Sans CJK SC`) | `/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc` | 开源高字形覆盖率字体 (`fonts-noto-cjk`) |
 
+### 宿主机根本没有 `simhei.ttf` 时
+
+候选 3 依赖 Windows 侧装着中文字体包。如果这台机器卸过中文语言功能、或做过字体替换，`/mnt/c/Windows/Fonts/simhei.ttf` 会直接不存在——探测落空，和路径写错的表现一模一样。先确认是哪一种：
+
+```bash
+ls -la /mnt/c/Windows/Fonts/simhei.ttf /mnt/c/Windows/Fonts/msyh.ttc 2>&1
+```
+
+补装要在 **Windows 侧**执行（管理员 PowerShell）：
+
+```powershell
+Add-WindowsCapability -Online -Name "Language.Fonts.Hans~~~und-HANS~0.0.1.0"
+```
+
+这条要从微软服务器拉，网络不稳时会反复失败。**离线装法**：从 my.visualstudio.com 搜
+`Languages and Optional Features for Windows 11` 下对应版本的 ISO，挂载后指定 `-Source`：
+
+```powershell
+Add-WindowsCapability -Online `
+  -Name "Language.Fonts.Hans~~~und-HANS~0.0.1.0" `
+  -Source "<挂载盘符>:\LanguagesAndOptionalFeatures" `
+  -LimitAccess
+```
+
+`-LimitAccess` 不能省：**不加的话即使给了 `-Source`，它仍会先去连 Windows Update**，离线就白准备了。
+
+装完在 WSL 侧无需重启，drvfs 立即可见；但 matplotlib 有字体缓存，要 `rm -rf ~/.cache/matplotlib` 后重试。
+
+不想动 Windows 的话，直接用候选 4/5 的 Linux 开源字体即可——学术图表用思源黑体完全够。
+
 ---
 
 ## 6. 输出质量验证检查单

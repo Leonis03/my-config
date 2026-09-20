@@ -1,0 +1,18 @@
+Windows Registry Editor Version 5.00
+
+; ===== Stay on Windows 11 24H2 and notify before download/install =====
+; You will SEE updates (quality, Defender, optional) but Windows will NOT offer 25H2.
+; Drivers remain allowed via Windows Update. Import and reboot (or run `gpupdate /force`).
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate]
+"ProductVersion"="Windows 11"
+"TargetReleaseVersion"=dword:00000001
+"TargetReleaseVersionInfo"="24H2"
+; Make sure you can view updates & details
+"DisableWindowsUpdateAccess"=-
+"DoNotConnectToWindowsUpdateInternetLocations"=-
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU]
+; 2 = Notify for download and notify for install
+"AUOptions"=dword:00000002
+"NoAutoUpdate"=dword:00000000

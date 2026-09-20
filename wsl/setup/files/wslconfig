@@ -1,0 +1,56 @@
+# ==============================================================================
+# %USERPROFILE%\.wslconfig -- settings for the whole WSL2 VM
+#
+# Deploy to the WINDOWS home directory, not into a distro:
+#   cp files/wslconfig "$(wslpath -u "$(cd /mnt/c && \
+#     /mnt/c/Windows/System32/cmd.exe /c 'echo %USERPROFILE%' \
+#     < /dev/null 2>/dev/null | tr -d '\0\r')")/.wslconfig"
+#
+# Do not confuse this with /etc/wsl.conf. They are different files with
+# different scopes, and a rebuild that copies only one of them looks fine until
+# it does not:
+#
+#   /etc/wsl.conf              one per distro, Linux side  (files/wsl.conf)
+#   %USERPROFILE%\.wslconfig   one per machine, the VM itself (this file)
+#
+# Changes here need a full `wsl --shutdown` -- the VM has to be recreated.
+# ==============================================================================
+
+[wsl2]
+
+# Share the Windows network stack instead of sitting behind NAT.
+#
+# LOAD-BEARING for the proxy setup. With mirrored networking, Windows'
+# 127.0.0.1 is the same 127.0.0.1 inside WSL, which is the only reason
+# ~/.shell_common can hardcode host_ip="127.0.0.1" for the local proxy. Under
+# the default NAT mode the host is a different address entirely (read it from
+# the default route or /etc/resolv.conf), 127.0.0.1 points at WSL itself, and
+# every proxied request fails with connection refused -- far from this file,
+# with nothing in ~/.shell_common to suggest why.
+networkingMode=mirrored
+
+# Inherit the Windows proxy configuration automatically. Redundant with the
+# explicit env vars in ~/.shell_common rather than in conflict with them: the
+# env vars are what non-interactive shells and agents actually read, and they
+# are the ones under version control.
+autoProxy=true
+
+# Resolve DNS through the Windows resolver rather than a generated
+# /etc/resolv.conf. Avoids the stale-nameserver problem when the host switches
+# networks (VPN on/off, dock/undock).
+dnsTunneling=true
+
+# ------------------------------------------------------------------------------
+# Resource caps -- MACHINE-SPECIFIC, review these on a new box.
+#
+# Defaults with no .wslconfig are 50% of physical RAM and all logical
+# processors, which on a laptop leaves Windows itself short under load.
+# The values below were chosen for a host with 16 GB RAM and 12 logical
+# processors; scale them, do not copy them blindly.
+#
+# swap defaults to 25% of the memory value; it is set explicitly here so the
+# number is visible rather than implied.
+# ------------------------------------------------------------------------------
+memory=8GB
+processors=8
+swap=8GB

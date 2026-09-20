@@ -43,7 +43,7 @@
 
 ### [`windows/`](windows/) —— Windows 侧
 
-[`terminal/`](windows/terminal/)（Windows Terminal 配置）· [`powershell/`](windows/powershell/)（PowerShell 7 profile 与 PSReadLine）· [`context-menu/`](windows/context-menu/)（右键菜单项排查与优化）
+[`terminal/`](windows/terminal/)（Windows Terminal 配置）· [`powershell/`](windows/powershell/)（PowerShell 7 profile、PSReadLine、一键关闭所有资源管理器窗口）· [`context-menu/`](windows/context-menu/)（右键菜单项排查与优化）· [`windows-update/`](windows/windows-update/)（把功能更新钉在 24H2，但保留更新可见性）
 
 ### [`agent/`](agent/) —— AI 工具链
 
@@ -56,8 +56,9 @@
 
 ### [`git-github/`](git-github/) · [`tools/`](tools/) · `tmp/`
 
-Git 隐私配置与历史脱敏 runbook；Python 与远程执行的踩坑；Docker；以及两个脚本——
-[`tools/privacy-gate.sh`](tools/privacy-gate.sh)（发布前的脱敏门禁）和
+Git 隐私配置与历史脱敏 runbook（含 GitHub 文件大小的四道门槛）；Python 与远程执行的踩坑；
+Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以及 ChkTeX 为什么在中文环境必须关掉）；
+以及两个脚本——[`tools/privacy-gate.sh`](tools/privacy-gate.sh)（发布前的脱敏门禁）和
 [`tools/sync-skills.sh`](tools/sync-skills.sh)（skill 的渲染式部署与核对）。
 
 `tmp/` 是**临时工作区**，已 gitignore，一切临时编辑、脚本试跑、覆盖前的备份都在里面做。
@@ -93,6 +94,10 @@ Git 隐私配置与历史脱敏 runbook；Python 与远程执行的踩坑；Dock
 | **systemd ≥ 256 在 WSL 起不了 user session** | `Failed to spawn executor: Device or resource busy`；Ubuntu 255 没事，Fedora 259 必炸 | [`wsl/distro-differences.md`](wsl/distro-differences.md) |
 | **cmd.exe 拒绝 UNC 工作目录** | 静默回退到 `C:\Windows`，路径相关操作全错却不报错 | [`agent/skills/wsl-windows-command/`](agent/skills/wsl-windows-command/) |
 | **WSL 不走 Windows Update** | Windows 锁了版本，却以为 WSL 也一起锁住了；实际两个渠道互不相干 | [`wsl/setup/`](wsl/setup/) 维护节 |
+| **`.wslconfig` 不在仓库里，代理就必然坏** | `host_ip="127.0.0.1"` 只在 `networkingMode=mirrored` 下成立。复刻时漏掉这个 Windows 侧文件，WSL 退回 NAT，`127.0.0.1` 指向它自己，所有代理请求 connection refused——而报错离原因很远，`~/.shell_common` 里没有任何线索 | [`wsl/setup/`](wsl/setup/) 步骤 0.1 |
+| **ChkTeX 在中文文档刷屏误报** | `Use "'" (ASCII 39) instead of "´"` 刷满输出，真错误被淹没。它逐字节扫描而非 UTF-8 解码，汉字的后续字节落在 `´`(0xB4) 位上就被当成排版错误。改规则集没用，只能关掉 | [`tools/latex/`](tools/latex/) |
+| **`-Source` 给了仍然去连网** | 离线装 Windows 中文字体包，ISO 都挂好了还是失败——`Add-WindowsCapability` 不加 `-LimitAccess` 会先去问 Windows Update | [`tools/latex/`](tools/latex/) · [`agent/skills/wsl-cjk-font/`](agent/skills/wsl-cjk-font/) |
+| **pnpm 拦掉 postinstall 但不报错** | `pnpm update -g --latest` 退出码 0、看着装好了，命令却跑不起来——pnpm 10 起默认不执行生命周期脚本。要 `--allow-build=<包名>` 显式放行 | [`wsl/storage/pnpm-npm-cleanup-20260920.md`](wsl/storage/pnpm-npm-cleanup-20260920.md) 3.2 |
 | **脱敏占位符借用了 `$HOME`** | 同一个记号既表示"待替换的家目录"，又表示真正的 shell 变量；一渲染就把 `set-deepln.sh` 里的 `$HOME` 硬编码成本机路径，脚本到了租来的 GPU 机上全错。判据应该是"会不会被 shell 展开"，不是文件类型 | [`agent/skills/README.md`](agent/skills/README.md) |
 | **jq 路径写错静默出 0 行** | 对 `bx news` 用 `.web.results[]`，exit 0 无报错，看起来像"这话题没结果" | [`agent/brave-search/bx-cli.md`](agent/brave-search/bx-cli.md) 第 6 节 |
 | **搜索前置 skill 成了固定税** | CLAUDE.md 每会话常驻、skill 正文按需加载，把 2.2k 的 skill 设成 `bx` 前置，成本结构正好反了 | [`agent/claude-code/README.md`](agent/claude-code/README.md) |

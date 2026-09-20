@@ -119,6 +119,15 @@ done
   ```bash
   "/mnt/c/Program Files/PowerShell/7/pwsh.exe" -NoProfile -ExecutionPolicy Bypass -File "./script.ps1" < /dev/null
   ```
+* **Related clutter**: the same zone marking is what leaves `*:Zone.Identifier`
+  files scattered around after downloading into a Windows directory. They are
+  NTFS alternate data streams surfaced as separate files by drvfs, harmless but
+  noisy in `ls` and in `git status`. Look before deleting, then delete:
+  ```bash
+  find . -name "*:Zone.Identifier"            # list first
+  find . -name "*:Zone.Identifier" -delete
+  ```
+  Only meaningful under `/mnt/*`; a WSL-native directory never has them.
 
 ---
 

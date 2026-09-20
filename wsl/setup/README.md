@@ -24,7 +24,8 @@
 
 | 仓库中的文件 | 部署到 | 作用 |
 | :--- | :--- | :--- |
-| `files/wsl.conf` | `/etc/wsl.conf` | systemd、默认用户、互操作策略、挂载策略 |
+| `files/wslconfig` | **Windows 家目录**的 `%USERPROFILE%\.wslconfig` | **整个 WSL2 虚拟机**一份，不在发行版里。网络模式、代理继承、DNS、内存/CPU/swap 上限。见步骤 0 |
+| `files/wsl.conf` | `/etc/wsl.conf` | **每个发行版各一份**。systemd、默认用户、互操作策略、挂载策略 |
 | `files/fstab` | 追加到 `/etc/fstab` | 显式挂载 C/D/E 三个固定盘（U 盘故意不挂，见步骤 1） |
 | `files/systemd/wsl-binfmt-guard.service`<br>`files/systemd/wsl-binfmt-guard.timer` | `/etc/systemd/system/` | 互操作 binfmt 守护。**多发行版机器必装**，见步骤 1.3 |
 | `files/systemd/systemd-binfmt-no-unregister.conf` | `/etc/systemd/system/systemd-binfmt.service.d/no-unregister.conf` | 阻止发行版优雅关机时清空全局 binfmt 表 |
@@ -87,6 +88,23 @@ wsl --set-default-version 2
 ```
 
 首次启动会要求创建 Linux 用户名与密码。本参考环境用户名记作 `<your-linux-user>`。
+
+#### 0.1 部署 `.wslconfig`（**别跳过，它决定后面代理能不能通**）
+
+这个文件在 **Windows 家目录**，管的是整个 WSL2 虚拟机，和发行版里的 `/etc/wsl.conf` 是两回事：
+
+```bash
+# 路径要运行时问 Windows 要，别写死账户名（见「常见问题」里 drvfs 大小写那条）
+WIN_HOME=$(wslpath -u "$(cd /mnt/c && /mnt/c/Windows/System32/cmd.exe /c 'echo %USERPROFILE%' \
+  < /dev/null 2>/dev/null | tr -d '\0\r')")
+cp files/wslconfig "$WIN_HOME/.wslconfig"
+```
+
+然后在 Windows 侧 `wsl --shutdown`，VM 重建后才生效。
+
+**为什么它是步骤 0 而不是可选项**：`networkingMode=mirrored` 让 Windows 的 `127.0.0.1` 在 WSL 里就是同一个 `127.0.0.1`，这正是步骤 4 里 `~/.shell_common` 敢把 `host_ip` 写死成 `127.0.0.1` 的唯一依据。用默认的 NAT 模式时宿主是另一个地址，`127.0.0.1` 指向 WSL 自己，所有走代理的请求都会 connection refused——而报错离这个文件很远，`~/.shell_common` 里没有任何线索指向它。
+
+`memory` / `processors` / `swap` 是按本机（16 GB 内存、12 逻辑处理器）定的，**换机器要重算**，别照抄。不写这个文件的默认值是「50% 物理内存 + 全部逻辑处理器」。
 
 > 若需要把 WSL 发行版迁移到非系统盘，见 [`../storage/wsl-distro-move-to-d-drive.md`](../storage/wsl-distro-move-to-d-drive.md)。
 
@@ -352,6 +370,48 @@ wsl --version
 `release/2.7` 是微软的**加固轨**，落后 master 数百个提交，新功能都在 master。所以这条轨上的版本通常是"纯安全、无新功能"，升级风险很低，**但也别指望它修功能性 bug**。
 
 内核版本比较看 `uname -r` 里的 base 号（如 `6.18.33`），**不是后缀**。
+
+Windows 侧把功能更新钉死在某个版本的做法（以及为什么钉了 Windows 也钉不住 WSL），见
+[`../../windows/windows-update/`](../../windows/windows-update/)。
+
+---
+
+### 维护：重装的三个层级，从轻到重
+
+出问题时按顺序试，**不要一上来就 `--unregister`**。全部在 Windows 侧 PowerShell 执行。
+
+**层级 1：重启 VM / 升级 WSL 本体。** 大多数"突然连不上网""互操作没反应"到这一步就好了，零数据代价：
+
+```powershell
+wsl --shutdown
+wsl --update
+```
+
+**层级 2：重装单个发行版。** 只动那一个发行版，不碰 Windows 的 WSL 组件：
+
+```powershell
+wsl -l -v                    # 先确认名字和版本
+wsl --unregister <Name>      # 注意：这会连同它的 ext4.vhdx 一起删掉
+wsl --install -d <Name>
+```
+
+> `--unregister` **不可撤销**，发行版里的家目录、装的包、改的配置全部消失。执行前先把
+> `~` 里要留的东西弄出来——跨发行版传文件见
+> [`../../agent/skills/wsl-windows-command/references/cross-distro.md`](../../agent/skills/wsl-windows-command/references/cross-distro.md) 第 2、3 节。
+> 另外多发行版机器上它还会顺手摘掉全局 `WSLInterop`，见步骤 1.3。
+
+**层级 3：重装 WSL 的 Windows 功能本身。** 只在前两级都无效、怀疑是 Windows 侧组件损坏时用。需要管理员，**两段之间要重启**：
+
+```powershell
+# 关
+dism /online /disable-feature /featurename:Microsoft-Windows-Subsystem-Linux /norestart
+dism /online /disable-feature /featurename:VirtualMachinePlatform /norestart
+# 重启 Windows，然后开
+dism /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+dism /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+```
+
+`VirtualMachinePlatform` 这一项容易漏——只关/开 `Microsoft-Windows-Subsystem-Linux` 的话，WSL2 仍然起不来，报错却指向别处。
 
 ---
 

@@ -146,6 +146,15 @@ export NVM_DIR="$HOME/.nvm"
 
 # ------------------------------------------------------------------------------
 # 5. Proxy (Clash Verge Rev, listening on 7897)
+#
+# host_ip=127.0.0.1 is only correct because the VM runs with
+# networkingMode=mirrored, set in %USERPROFILE%\.wslconfig (files/wslconfig).
+# Mirrored networking makes the Windows loopback and the WSL loopback the same
+# address. Under the default NAT mode the host is somewhere else entirely and
+# 127.0.0.1 points back at WSL, so every proxied request fails with connection
+# refused -- with nothing here to suggest the cause is a file on the Windows
+# side. If you are on NAT, derive the host from the default route instead:
+#   host_ip=$(ip route show default | awk '/default/ {print $3}')
 # ------------------------------------------------------------------------------
 export host_ip="127.0.0.1"
 export proxy_port="7897"

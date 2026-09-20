@@ -51,8 +51,11 @@ shell functions.
 ### [`windows/`](windows/) -- the Windows side
 
 [`terminal/`](windows/terminal/) (Windows Terminal config) ·
-[`powershell/`](windows/powershell/) (PowerShell 7 profile and PSReadLine) ·
-[`context-menu/`](windows/context-menu/) (diagnosing and trimming context-menu entries)
+[`powershell/`](windows/powershell/) (PowerShell 7 profile, PSReadLine, closing every File
+Explorer window without killing the shell) ·
+[`context-menu/`](windows/context-menu/) (diagnosing and trimming context-menu entries) ·
+[`windows-update/`](windows/windows-update/) (pin feature updates to 24H2 while keeping
+updates visible)
 
 ### [`agent/`](agent/) -- AI toolchain
 
@@ -65,10 +68,12 @@ shell functions.
 
 ### [`git-github/`](git-github/) · [`tools/`](tools/) · `tmp/`
 
-Git privacy configuration and a history-scrubbing runbook; Python and remote-execution
-pitfalls; Docker; and two scripts -- [`tools/privacy-gate.sh`](tools/privacy-gate.sh) (the
-pre-publish redaction gate) and [`tools/sync-skills.sh`](tools/sync-skills.sh) (rendered skill
-deployment and verification).
+Git privacy configuration and a history-scrubbing runbook (including GitHub's four file-size
+thresholds); Python and remote-execution pitfalls; Docker;
+[`tools/latex/`](tools/latex/) (the VS Code LaTeX Workshop toolchain, and why ChkTeX has to be
+off for Chinese documents); and two scripts --
+[`tools/privacy-gate.sh`](tools/privacy-gate.sh) (the pre-publish redaction gate) and
+[`tools/sync-skills.sh`](tools/sync-skills.sh) (rendered skill deployment and verification).
 
 `tmp/` is a **scratch area**, gitignored. Every temporary edit, trial script run, and
 pre-overwrite backup happens in there. All three are covered under "Conventions" below.
@@ -103,6 +108,10 @@ Entries that took real time to diagnose and whose conclusion is not obvious.
 | **systemd >= 256 cannot start a user session under WSL** | `Failed to spawn executor: Device or resource busy`. Ubuntu's 255 is fine; Fedora's 259 always breaks | [`wsl/distro-differences.md`](wsl/distro-differences.md) |
 | **cmd.exe refuses a UNC working directory** | It falls back to `C:\Windows` silently, so every path-relative operation is wrong without any error | [`agent/skills/wsl-windows-command/`](agent/skills/wsl-windows-command/) |
 | **WSL does not update through Windows Update** | Windows is version-pinned, so you assume WSL is pinned too; in fact the two channels are unrelated | [`wsl/setup/`](wsl/setup/) maintenance section |
+| **Leave `.wslconfig` out of the repo and the proxy is guaranteed to break** | `host_ip="127.0.0.1"` is only correct under `networkingMode=mirrored`. Miss that Windows-side file during a rebuild, WSL falls back to NAT, `127.0.0.1` points at WSL itself, and every proxied request is refused -- far from the cause, with nothing in `~/.shell_common` pointing at it | [`wsl/setup/`](wsl/setup/) step 0.1 |
+| **ChkTeX floods Chinese documents with false positives** | `Use "'" (ASCII 39) instead of "´"` fills the output and buries the real errors. It scans bytes rather than decoding UTF-8, so a continuation byte of a Chinese character landing on `´` (0xB4) reads as a typography mistake. No rule tweak helps; turn it off | [`tools/latex/`](tools/latex/) |
+| **`-Source` given, still goes online** | Installing the Windows Chinese font package offline fails even with the ISO mounted -- `Add-WindowsCapability` contacts Windows Update first unless `-LimitAccess` is also passed | [`tools/latex/`](tools/latex/) · [`agent/skills/wsl-cjk-font/`](agent/skills/wsl-cjk-font/) |
+| **pnpm blocks postinstall without saying so** | `pnpm update -g --latest` exits 0 and looks installed, but the command will not run -- pnpm 10+ skips lifecycle scripts by default. Allow them per package with `--allow-build=<name>` | [`wsl/storage/pnpm-npm-cleanup-20260920.md`](wsl/storage/pnpm-npm-cleanup-20260920.md) 3.2 |
 | **A redaction placeholder borrowed `$HOME`** | One token meant both "a home directory awaiting substitution" and a genuine shell variable. Rendering it hardcoded the local path into `set-deepln.sh`, so the script was wrong everywhere on a rented GPU box. The test should be "will a shell expand this", not what kind of file it is | [`agent/skills/README.md`](agent/skills/README.md) |
 | **A wrong jq path silently yields 0 rows** | Using `.web.results[]` against `bx news` exits 0 with no error and looks like "no results for this topic" | [`agent/brave-search/bx-cli.md`](agent/brave-search/bx-cli.md) section 6 |
 | **A search-gating skill became a fixed tax** | `CLAUDE.md` is resident every session while a skill body loads on demand; making a 2.2k skill a prerequisite for `bx` inverts the cost structure | [`agent/claude-code/README.md`](agent/claude-code/README.md) |

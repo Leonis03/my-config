@@ -13,6 +13,7 @@
 5. [清洗历史 Commit 中的真实邮箱 (git-filter-repo)](#五清洗历史-commit-中的真实邮箱-git-filter-repo)
 6. [个人仓库批量转为 Private 及验证](#六个人仓库批量转为-private-及验证)
 7. [日常检查与验证命令速查](#七日常检查与验证命令速查)
+8. [文件大小限制](#八文件大小限制)
 
 ---
 
@@ -315,3 +316,28 @@ done
 | **Git 网络传输协议** | `git config --global http.version` | `HTTP/1.1` |
 | **gh 登录账号状态** | `gh auth status` | `Logged in to github.com account Leonis03` |
 | **最近一次 Commit 身份** | `git log -1 --format='%an <%ae>'` | 提交者与提交邮箱均为隐私设置 |
+
+---
+
+## 八、文件大小限制
+
+四道门槛，单位是 **MiB 不是 MB**（GitHub 官方文档用的就是 MiB）：
+
+| 大小 | 会发生什么 |
+| :--- | :--- |
+| ≤ 25 MiB | 网页端 `Add file → Upload files` 可传 |
+| 25 – 50 MiB | 网页端**不让传**，但 `git push` 正常 |
+| 50 – 100 MiB | 能推，但 Git 会给**警告**。历史里留着会拖慢每一次 clone |
+| > 100 MiB | **直接拒绝**。必须改用 Git LFS，或换分发方式 |
+
+**Release 附件是另一套规则**：仓库总量不限，但**单个文件必须 < 2 GiB**。发大文件（模型权重、安装包、数据集）走 Releases 比塞进 Git 历史合适——历史里的大文件删不掉，只能重写历史。
+
+被 100 MiB 挡住时的选择顺序：
+
+1. **这个文件该不该进版本库**——构建产物、缓存、下载的依赖都不该进，加进 `.gitignore` 即可
+2. **能不能走 Releases 附件**——发布物、二进制分发首选
+3. **确实需要版本化的大文件**才上 Git LFS
+
+> 已经推上去再想删，靠 `git rm` 没用——文件还在历史里。得 `git filter-repo` 重写，注意它
+> 会**静默丢弃未提交的已跟踪修改**，见
+> [`email-scrub-runbook.md`](email-scrub-runbook.md) 第 2 节。

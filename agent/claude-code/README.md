@@ -74,6 +74,43 @@ done
 - 单次 jq 提取全部字段。加字段是免费的，加 jq 调用不是（每次 fork 约 4 ms）。官方去抖窗口是 300 ms。
 - 依赖 `jq`；没有它状态栏仍能渲染，只是没有指标。
 
+## 恢复历史会话
+
+```
+/resume          会话内调用，直接进选择界面
+claude --resume  从终端进同一个界面
+```
+
+**默认只列当前目录的会话。** 选择界面底部那行提示容易被忽略，其中最有用的是第一个：
+
+```
+Ctrl+A 显示所有项目 · Ctrl+V 预览 · Ctrl+R 重命名 · 输入即搜索 · esc 取消 · → 展开
+```
+
+不按 `Ctrl+A`，在别的目录里开的会话就是找不到——看起来像「记录丢了」。
+
+会话文件落在 `~/.claude/projects/<路径编码后的目录名>/`，本机是 `-home-k`、`-home-k-dev`
+这种把 `/` 换成 `-` 的形式。只想翻内容不想恢复，直接在那里 `grep` 更快；JSONL 分叉/丢消息
+的问题见 [`../skills/trim-branch/`](../skills/trim-branch/)。
+
+Codex 的对应命令：`codex resume`（当前目录）、`codex resume --all`（全局）、
+`codex resume --last`（跳到最近一次，可与 `--all` 组合）、`codex resume <SESSION_ID>`。
+会话文件默认在 `~/.codex/sessions/`。
+
+## 多配置切换
+
+`settings.json` 里的 `env` 段（`ANTHROPIC_BASE_URL`、`ANTHROPIC_API_KEY`）决定了 Claude Code
+连到哪。第三方中转服务走的是**协议**而不是代码——把同一个客户端指向别的后端而已。
+
+手工改 `~/.claude/settings.json` 来回切容易把文件改坏，社区有现成的
+[cc-switch](https://github.com/farion1231/cc-switch) 在管这件事。
+
+> 本仓库的 `settings.json` **不含** `env` 段，也就不含任何密钥。要用中转服务的话，把密钥放
+> `~/.shell_secrets`（见 [`../../wsl/setup/`](../../wsl/setup/)），别写进这个文件——它是被版本
+> 控制的。
+
+---
+
 ## 相关
 
 - 技能：[`../skills/`](../skills/)
