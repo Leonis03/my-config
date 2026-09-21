@@ -1,6 +1,6 @@
 ---
 name: wsl-windows-command
-description: Run Windows commands, programs, and config edits from inside WSL2 via interop, and drive other WSL distros from one distro. Use whenever a task in a WSL shell needs to touch the Windows side: reading or writing the Windows registry with reg.exe, launching pwsh.exe / powershell.exe / wt.exe / wsl.exe / any Windows .exe, editing Windows user config files under /mnt/c (Windows Terminal settings.json, AppData, registry .reg files), or converting between /mnt/c and \\wsl.localhost paths. Also covers cross-distro work -- running commands in another distro, sharing or moving files between distros via /mnt/wsl bind mounts, and why one distro's lifecycle silently breaks interop in another. Reach for this skill the moment a Windows command run from WSL misbehaves -- "exec format error" on a valid .exe, "accept4 failed 110", quoting errors, "cannot be loaded because running scripts is disabled" execution-policy errors, or registry keys that "cannot be found" even though they exist. Covers the /reg:64 redirection gotcha, ExecutionPolicy Bypass, and quote-safe invocation.
+description: Run Windows commands, programs, and config edits from WSL2 via interop, and drive other WSL distros from one distro. Use whenever a WSL task must touch the Windows side -- reg.exe registry reads and writes, launching pwsh.exe / powershell.exe / wt.exe / wsl.exe / any Windows .exe, editing Windows config under /mnt/c (Windows Terminal settings.json, AppData, .reg files), or converting between /mnt/c and \\wsl.localhost paths. Also covers cross-distro work -- running commands in another distro, sharing files through /mnt/wsl bind mounts, why those mounts vanish after wsl --shutdown, syncing a Git clone between distros, and how one distro's lifecycle silently breaks interop in another. Reach for it when a Windows command run from WSL misbehaves -- exec format error on a valid .exe, accept4 failed 110, quoting errors, execution-policy errors, or registry keys that cannot be found though they exist. Covers the /reg:64 redirection gotcha, ExecutionPolicy Bypass, and quote-safe invocation.
 allowed-tools: Bash Read
 ---
 
@@ -103,18 +103,50 @@ cd /mnt/c   # see Golden Rule 4
 
 ### Command in Another Distro
 ```bash
-cd /mnt/c && /mnt/c/Windows/System32/wsl.exe -d Fedora -u root -e sh -c 'cat /etc/os-release' \
+/mnt/c/Windows/System32/wsl.exe -d Fedora -u root -e sh -c 'cat /etc/os-release' \
   < /dev/null 2>&1 | tr -d '\0\r'
 ```
-Check `echo "$WSL_DISTRO_NAME"` first -- the `*` in `wsl -l -v` marks the **default** distro, not the one you are in, so `-d` can silently re-enter the current one.
+Check `echo "$WSL_DISTRO_NAME"` first -- the `*` in `wsl -l -v` marks the **default** distro, not the one you are in, so `-d` can silently re-enter the current one. Read the `STATE` column too: `-d` cold-starts a `Stopped` distro however read-only the command looks. Omit `-u` unless the default user is wrong -- `-e sh -c` already runs as the target distro's default user, which is what user-level work wants; `-u root` is for `mount` and leaves root-owned files behind if used by habit.
+
+### Syncing a Git Clone Across Distros
+For two independent clones of the same repository, synchronize versions through the Git remote (usually GitHub), not by copying `.git` through `/mnt/wsl`. **The clone path is per-distro** -- resolve it in the target, never assume the one you use locally (here the same repo is `~/dev/my-config-private` in Fedora and `~/code/my-config-private` in Ubuntu):
+
+```bash
+# Resolve the path. Print the whole result -- piping a probe through `head` is how
+# a present clone reads as a missing one.
+/mnt/c/Windows/System32/wsl.exe -d Ubuntu -e sh -c \
+  'find ~ -maxdepth 3 -name my-config-private -type d' < /dev/null 2>&1 | tr -d '\0\r'
+
+# Then run Git inside the target distro, at the path you just resolved.
+/mnt/c/Windows/System32/wsl.exe -d Ubuntu -e sh -c \
+  'cd /home/<user>/code/my-config-private && GIT_TERMINAL_PROMPT=0 git fetch origin main \
+     && git merge --ff-only origin/main' < /dev/null 2>&1 | tr -d '\0\r'
+```
+
+Run Git **inside** the target distro so that its `origin` URL, config, credential helper, hooks, and network environment are used. `--ff-only` refuses rather than inventing a merge commit; if it refuses, stop and read `git status` and the branch graph. `GIT_TERMINAL_PROMPT=0` is load-bearing under `-e ... < /dev/null`: with stdin detached, a missing credential otherwise becomes a hang or an opaque failure instead of an immediate error.
+
+Do not check credentials with `git config credential.helper`. `gh auth setup-git` writes a **host-scoped** key, so the bare key reads empty on a clone that authenticates perfectly well -- measured on Ubuntu, where all three scopes were empty and a private-repo fetch still succeeded. Probe the key that actually applies:
+
+```bash
+git config --get-urlmatch credential.helper https://github.com
+# -> !/usr/bin/gh auth git-credential
+```
+
+A pull updates the source tree, not whatever was deployed from it. Skills in this repo live in `~/.claude/skills` and `~/.gemini/config/skills`, so the sync ends with `bash tools/sync-skills.sh deploy`, not with the fast-forward -- `tools/.sync-map` is gitignored and already present per machine. `/mnt/wsl` gives direct file access to another clone, but it does not fetch GitHub versions and a `git -C /mnt/wsl/<distro>/...` command would use the calling distro's Git environment.
 
 ### Files in Another Distro
 ```bash
 # Bind the other distro's root into the shared tmpfs; then read it as ordinary local files.
-cd /mnt/c && /mnt/c/Windows/System32/wsl.exe -d Fedora -u root -e sh -c \
+/mnt/c/Windows/System32/wsl.exe -d Fedora -u root -e sh -c \
   'mkdir -p /mnt/wsl/Fedora && mount --bind / /mnt/wsl/Fedora' < /dev/null 2>&1 | tr -d '\0\r'
 ls /mnt/wsl/Fedora/home
+
+# After the bind exists, file operations do not invoke wsl.exe:
+printf c > /mnt/wsl/Fedora/home/<user>/test.txt
+cat /mnt/wsl/Fedora/home/<user>/test.txt
 ```
-Anything bind-mounted **under `/mnt/wsl`** is visible in every WSL2 distro. Use this instead of `\\wsl.localhost` for file work -- it measured ~23x faster on a 21.6 MB tree.
+Anything bind-mounted **under `/mnt/wsl`** is visible in every WSL2 distro. Use this instead of `\\wsl.localhost` for file work -- it measured ~23x faster on a 21.6 MB tree. The bind is read/write by default, subject to normal Unix permissions and UID alignment.
+
+The mounts are not persistent: `/mnt/wsl` is a shared tmpfs and `wsl --shutdown` removes the bind mounts. On a systemd distro, restore them with a **plain** `/ /mnt/wsl/<distro> none bind,nofail 0 0` line in each distro's `/etc/fstab` -- systemd creates the mount point itself. Do not reach for `X-mount.mkdir`: it makes WSL's pre-tmpfs `mount -a` pass succeed and leaves a shadowed orphan mount that `findmnt` lists but no path can reach (verified across a real `wsl --shutdown`; see the reference). For a one-off, rerun the guarded mount command. Do not expose an entire root read/write when a home-directory bind is sufficient.
 
 See [references/cross-distro.md](references/cross-distro.md) before doing either -- both have non-obvious consequences for interop and for distro lifecycle.

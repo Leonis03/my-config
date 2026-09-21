@@ -33,6 +33,7 @@
 | `files/fstab` | 追加到 `/etc/fstab` | 显式挂载 C/D/E 三个固定盘（U 盘故意不挂，见步骤 1） |
 | `files/systemd/wsl-binfmt-guard.service`<br>`files/systemd/wsl-binfmt-guard.timer` | `/etc/systemd/system/` | 互操作 binfmt 守护。**多发行版机器必装**，见步骤 1.3 |
 | `files/systemd/systemd-binfmt-no-unregister.conf` | `/etc/systemd/system/systemd-binfmt.service.d/no-unregister.conf` | 阻止发行版优雅关机时清空全局 binfmt 表 |
+| `files/systemd/wsl-mount-guard.service`<br>`files/systemd/wsl-mount-guard.timer` | `/etc/systemd/system/` | `/mnt/wsl` 共享 bind 守护。另一个发行版优雅关机会把你的 bind 传播式卸载掉，见步骤 1.4 |
 | `files/bin/wslview` | `~/.local/bin/wslview` | **仅在没有 wslu 的发行版上需要**（如 Fedora）。`BROWSER` 必须指向真实可执行文件，不能是 shell 函数，见 [`../distro-differences.md`](../distro-differences.md) 第四节 |
 | `files/shell_common` | `~/.shell_common` | **bash 与 zsh 共用**的环境变量、PATH、代理、输入法、keyring |
 | `files/shell_wslfn` | `~/.shell_wslfn` | Windows 互操作**函数**定义。除末尾 export 一个 `BASH_ENV` 指回自己（给非交互 bash 用）外无副作用，所以够轻，敢从 `~/.zshenv` 里 source |
@@ -171,6 +172,34 @@ sudo systemctl enable --now wsl-binfmt-guard.timer
 ```bash
 sudo systemctl restart systemd-binfmt
 ```
+
+> **这条应急命令在装了 timer 的机器上多半用不到，而且单独用会骗人。** `systemd-binfmt.service`
+> 被 `ConditionDirectoryNotEmpty` 门控在五个 `binfmt.d` 目录上；这些目录默认全空，unit 会被直接
+> 跳过，WSL 注入的那个 generator drop-in 根本没机会执行，但 `systemctl restart` 照样返回 0。
+> 实测：目录为空时重启毫无作用，手工放一个 `/etc/binfmt.d/WSLInterop.conf` 之后同一条命令立刻
+> 生效。装了 `wsl-binfmt-guard.timer` 就别折腾这些——先 `systemctl list-timers` 等满一个 30 秒
+> 周期。断了之后 30 秒内连敲三条命令就断定机器坏了，是这里最容易犯的错。
+
+#### 1.4 `/mnt/wsl` 跨发行版共享守护（**装了 1.3 就一起装**）
+
+```bash
+sudo cp files/systemd/wsl-mount-guard.service files/systemd/wsl-mount-guard.timer \
+  /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now wsl-mount-guard.timer
+```
+
+**为什么需要**：`files/fstab` 里那条 `/ /mnt/wsl/<Distro> none bind,nofail 0 0` 只保证**本发行版
+开机**时把共享恢复。`/mnt/wsl` 是所有发行版共用的 tmpfs，挂载传播是双向的——**另一个发行版优雅
+关机**时，它的 systemd 会卸载自己命名空间里那些传播过去的副本，卸载再传播回来，把你这边的原始
+bind 一起带走，而且在你下次重启前没有任何东西会恢复它。
+
+`wsl --terminate` 不会触发这个：硬杀不走优雅卸载路径，和 `no-unregister.conf` 注释里区分的是同一条
+界线。要主动复现，用 `wsl.exe -d <另一个发行版> -u root -e systemctl poweroff`。
+
+实测一轮：poweroff 后 T+10s 共享消失，T+20s 被 timer 恢复，此后稳定。守护的目标是从 `/etc/fstab`
+里读出来的（凡 target 在 `/mnt/wsl/` 下的条目），所以同一份 unit 文件在每个发行版都能直接用，不需要
+按发行版替换名字。
 
 > **生效方式**：在 Windows PowerShell 执行 `wsl.exe --shutdown`，然后重新打开 WSL。改 `wsl.conf` / `fstab` 后不 shutdown 不生效。注意 `--shutdown` 会关掉**所有**发行版。
 
@@ -471,6 +500,13 @@ touch /mnt/c/Users/Public/.wsl-rw-probe && rm /mnt/c/Users/Public/.wsl-rw-probe 
 # 11. 互操作 binfmt 守护（多发行版机器）
 ls /proc/sys/fs/binfmt_misc/ | grep -q WSLInterop && echo "WSLInterop OK" || echo "MISSING"
 systemctl is-active wsl-binfmt-guard.timer     # 预期 active
+
+# 12. /mnt/wsl 跨发行版共享（多发行版机器）
+systemctl is-active wsl-mount-guard.timer      # 预期 active
+findmnt -no TARGET "/mnt/wsl/$WSL_DISTRO_NAME" # 预期打印该路径
+# 挂载必须落在共享 tmpfs 里面：下面两个 id 要一致，不一致说明挂成了被遮蔽的孤儿
+awk '$5=="/mnt/wsl"{print "tmpfs id="$1}' /proc/self/mountinfo
+awk -v t="/mnt/wsl/$WSL_DISTRO_NAME" '$5==t{print "bind parent="$2}' /proc/self/mountinfo
 ```
 
 > **第 9 条为什么用 `env -i`**：普通测试会继承当前会话的环境变量，已删除的凭据在重启前仍会显示存在，造成误判。`env -i` 起一个干净环境，才能真正验证文件已清理。

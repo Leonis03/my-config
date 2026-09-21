@@ -1,0 +1,19 @@
+# Deploy to /etc/systemd/system/wsl-mount-guard.timer
+# Enable with: sudo systemctl enable --now wsl-mount-guard.timer
+#
+# Same cadence as wsl-binfmt-guard.timer, and for the same reason: the damage is
+# done by another distro's lifecycle, which you get no notification of, so
+# polling is the only option. Thirty seconds is long enough to notice the share
+# is gone and conclude the machine is broken -- check
+# `systemctl list-timers wsl-mount-guard.timer` and wait one cycle before
+# remounting by hand.
+[Unit]
+Description=Periodically verify this distro's /mnt/wsl bind mounts are present
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=30s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

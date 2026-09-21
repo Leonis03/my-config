@@ -57,9 +57,39 @@ done
   ```bash
   sudo systemctl restart systemd-binfmt
   ```
-  This succeeds even with no `/etc/binfmt.d/` entry of your own, because WSL injects a generator
-  drop-in at `/run/systemd/generator/systemd-binfmt.service.d/override.conf` that re-registers the
-  handler explicitly. Adding your own `/etc/binfmt.d/WSLInterop.conf` is redundant.
+  **That command alone is not enough on a stock distro, and it fails silently.** WSL does inject
+  a generator drop-in at `/run/systemd/generator/systemd-binfmt.service.d/override.conf` whose
+  `ExecStart` re-registers the handler -- but `systemd-binfmt.service` is gated by
+  `ConditionDirectoryNotEmpty=|/etc/binfmt.d` (plus `/run`, `/usr/lib`, `/usr/local/lib`,
+  `/lib`). With every one of those empty the unit is **skipped**, the drop-in never runs, and
+  `systemctl restart` still exits `0`:
+
+  ```text
+  Active: inactive (dead)
+  Condition: start condition unmet
+             |- ConditionDirectoryNotEmpty=|/etc/binfmt.d was not met
+  ```
+
+  So the file is load-bearing, not redundant. Create it once per distro, then restart:
+
+  ```bash
+  printf ':WSLInterop:M::MZ::/init:P\n' | sudo tee /etc/binfmt.d/WSLInterop.conf
+  sudo systemctl restart systemd-binfmt
+  ```
+
+  Measured: with the directory empty the restart changed nothing and `wsl.exe` still gave
+  `Exec format error`; with the file present the same restart re-registered the handler and
+  interop came back immediately. The file only has to make the directory non-empty -- the
+  registration that actually takes effect is still the one from WSL's drop-in.
+
+  **Prefer the timer to either of these.** This repo ships `wsl-binfmt-guard.timer` +
+  `.service` (see `wsl/setup/files/systemd/`), which re-registers the handler only when it is
+  absent, every 30s. Where that is installed and enabled, interop self-heals within half a
+  minute and neither the manual restart nor the `binfmt.d` file is needed -- confirmed firing on
+  schedule here. The trap is that half a minute is long enough to run three commands and
+  conclude the machine is broken: check `systemctl list-timers wsl-binfmt-guard.timer` and wait
+  one cycle before intervening. The manual route above is for a distro where the timer is not
+  installed.
 * **Verify**:
   ```bash
   cat /proc/sys/fs/binfmt_misc/WSLInterop
@@ -155,7 +185,7 @@ done
 | :--- | :--- | :--- |
 | `accept4 failed 110`, **some** sockets OK | Stale `WSL_INTEROP` socket | `export WSL_INTEROP=<one that probed OK>` |
 | `accept4 failed 110`, **all** sockets fail | Windows-side interop listener is down | Start another distro, or `wsl --shutdown` from Windows |
-| `Exec format error` | `WSLInterop` missing from the **global** `binfmt_misc` table -- usually another distro started/stopped | `sudo systemctl restart systemd-binfmt` (must be local; `wsl.exe` cannot run) |
+| `Exec format error` | `WSLInterop` missing from the **global** `binfmt_misc` table -- usually another distro started/stopped | `sudo systemctl restart systemd-binfmt`, but only once `/etc/binfmt.d/WSLInterop.conf` exists -- an empty `binfmt.d` makes the unit skip and the restart a silent no-op (section 1.2). Must be local; `wsl.exe` cannot run |
 | Windows tool writes to the wrong directory | WSL cwd inherited as UNC; `cmd.exe` silently fell back to `C:\Windows` | `cd /mnt/c` before invoking |
 | Command hangs in script | Stdin waiting on interop bridge | Append `< /dev/null` |
 | Output has spaces between letters | UTF-16 LE null bytes | Pipe to `tr -d '\r' \| tr -d '\0'` |

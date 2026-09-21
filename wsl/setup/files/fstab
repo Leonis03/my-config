@@ -24,3 +24,22 @@
 C:	/mnt/c	drvfs	metadata,uid=1000,gid=1000,umask=22	0 0
 D:	/mnt/d	drvfs	metadata,uid=1000,gid=1000,umask=22	0 0
 E:	/mnt/e	drvfs	metadata,uid=1000,gid=1000,umask=22	0 0
+
+# --- Cross-distro share: bind this distro's root under the shared tmpfs -------
+# /mnt/wsl is a tmpfs shared by every WSL2 distro in the VM, so a bind whose
+# TARGET sits under it is visible from every other distro. Replace <Distro>
+# below with this distro's own name (`echo $WSL_DISTRO_NAME`).
+#
+# Use the PLAIN entry. Do NOT add X-mount.mkdir. WSL runs its own `mount -a` at
+# distro start BEFORE the shared tmpfs is mounted, while /mnt/wsl is still a
+# plain directory on /. X-mount.mkdir makes that early pass succeed, and the
+# real tmpfs is then mounted over the top -- burying the bind as an orphan that
+# findmnt lists and no path can reach. The plain entry fails harmlessly in that
+# pass (`wsl: Processing /etc/fstab with mount -a failed.` is the normal
+# signature), and systemd then mounts it correctly, creating the mount point
+# itself a second later.
+#
+# Requires systemd. Verified across a real `wsl --shutdown` on Fedora + Ubuntu.
+# Binding all of / exposes this distro's whole filesystem to the others; bind a
+# single directory instead if that is more than you want to share.
+/	/mnt/wsl/<Distro>	none	bind,nofail	0 0

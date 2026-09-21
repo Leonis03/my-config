@@ -1,0 +1,40 @@
+# Deploy to /etc/systemd/system/wsl-mount-guard.service
+#
+# Why this exists: /mnt/wsl is a tmpfs SHARED by every distro in the WSL VM, so
+# mount propagation runs in both directions. When another distro shuts down
+# gracefully, its systemd unmounts the propagated copies it holds under
+# /mnt/wsl, and those unmounts propagate back here and take THIS distro's own
+# bind with them. Measured: the local mount unit deactivates about six seconds
+# after the peer's. `wsl --terminate` does not do this -- a hard kill never runs
+# the graceful unmount path, the same split that no-unregister.conf is written
+# around.
+#
+# The /etc/fstab entry only re-establishes the bind at OUR boot, so once a peer
+# has taken it down nothing puts it back until the next restart. This timer is
+# what puts it back.
+#
+# Targets are read out of /etc/fstab rather than hardcoded, so the same unit
+# file works in every distro with no per-distro substitution. The check is
+# surgical on purpose -- it only mounts a target that is currently absent, so it
+# never disturbs a live mount or anything else under /mnt/wsl.
+#
+# mkdir is safe here in a way it is NOT safe in fstab: this runs well after the
+# shared tmpfs is in place. Creating the mount point from an fstab option
+# (X-mount.mkdir) instead lands it in the pre-tmpfs directory that WSL's early
+# `mount -a` sees, and the real tmpfs then buries the result as an unreachable
+# orphan. See agent/skills/wsl-windows-command/references/cross-distro.md.
+#
+# Two syntax notes for anyone editing the ExecStart line. $$ is a literal dollar
+# sign -- systemd expands $NAME there, so a shell variable has to be doubled.
+# And the comment pattern is written "#"* rather than \#* because systemd warns
+# "Ignoring unknown escape sequences" on the backslash form. Skipping comment
+# lines is not optional: the fstab block above contains lines whose second field
+# is a real /mnt/wsl path inside prose, and those would otherwise be mounted.
+[Unit]
+Description=Re-establish this distro's /mnt/wsl bind mounts if they went missing
+Documentation=man:systemd.mount(5) man:fstab(5)
+ConditionPathIsMountPoint=/mnt/wsl
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'while read -r src tgt rest; do case "$$src" in "#"*) continue ;; esac; case "$$tgt" in /mnt/wsl/*) ;; *) continue ;; esac; mountpoint -q "$$tgt" || { mkdir -p "$$tgt"; mount "$$tgt"; }; done < /etc/fstab'
