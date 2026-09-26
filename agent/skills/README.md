@@ -1,6 +1,6 @@
 # Skills
 
-14 个 skill，同时供 Claude Code（`~/.claude/skills/`）与 Antigravity（`~/.gemini/config/skills/`）使用。
+18 个 skill，同时供 Claude Code（`~/.claude/skills/`）与 Antigravity（`~/.gemini/config/skills/`）使用。
 两边装的集合不同（见下表），但凡是两边都有的，内容保持一致。
 
 ## 部署与核对：不能直接 cp
@@ -65,9 +65,13 @@ bash ../../tools/sync-skills.sh deploy bx  # 只处理一个
 
 | skill | `.claude` | `.gemini` |
 | :--- | :---: | :---: |
-| `bx` · `deepln-setup` · `find-skills` · `gpu-cuda-checks` · `shuorenhua` · `trim-branch` · `wsl-windows-command` | ✅ | ✅ |
-| `antigravity-cli` · `docx-to-md` · `download-bilibili` · `pdf-to-md` · `video-to-md` · `wsl-cjk-font` | — | ✅ |
+| `android-chroot-debian` · `antigravity-cli` · `bx` · `deepln-setup` · `find-skills` · `gpu-cuda-checks` · `honor-linuxlab` · `inspect-session` · `shuorenhua` · `termux-debian-external-drive` · `trim-branch` · `wsl-windows-command` | ✅ | ✅ |
+| `docx-to-md` · `download-bilibili` · `pdf-to-md` · `video-to-md` · `wsl-cjk-font` | — | ✅ |
 | `compress-wsl-space` | — | — |
+
+`antigravity-cli` 在 Claude Code 侧不止是 skill 目录：它的 `scripts/agy-guard.sh` 挂在
+`~/.claude/settings.json` 的 PreToolUse 钩子上（见 [`../claude-code/`](../claude-code/)），
+负责拦下裸 `agy -p` 与 agent 自行 `grant`。只装 skill 不配钩子，同意闸门就只剩文档约束。
 
 新装一个 skill 是**手动动作**（两边集合本就不同，脚本不会替你决定）；装好之后由
 `sync-skills.sh` 维持一致。安装一律 `cp`，不要 `ln -s`——见根目录 README 的「约定」。

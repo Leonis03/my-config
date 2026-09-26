@@ -12,6 +12,11 @@ metadata:
 
 > 目标：不使用 `--dangerously-skip-permissions`、也不使用 `command(*)` 全局放行，让 agy 读取本地图片并描述内容。
 > 2026-08-12 在 agy v1.1.12 上解决并实测通过。本文合并了当时的完整排查记录。
+>
+> **历史记录（Windows 版 agy v1.1.12）。** 2026-09-26 在 WSL 的 agy v1.2.11 上复测，有两处已不成立：
+> 工作区（cwd）无需任何规则即可读，`read_file(*)` 不再需要，而且它等于放行读任意文件；
+> `command()` 已是按词前缀匹配（`command(ls)` 放行 `ls -la /etc`），不再是精确全串匹配。
+> 现行做法见 skill：[`../skills/antigravity-cli/`](../skills/antigravity-cli/)（`agy-run.sh --image`）。
 
 ## 结论
 

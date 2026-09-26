@@ -6,7 +6,7 @@
 
 | 仓库中的文件 | 部署到 | 同步于 | 说明 |
 | :--- | :--- | :--- | :--- |
-| `settings.json` | `~/.claude/settings.json` | 2026-09-20 | 模型、effort、插件、权限、statusLine 挂载点 |
+| `settings.json` | `~/.claude/settings.json` | 2026-09-20 | 模型、effort、插件、权限、statusLine 挂载点、agy 守卫钩子 |
 | `CLAUDE.md` | `~/.claude/CLAUDE.md` | 2026-09-20 | 全局约定（bx 搜索配方、uv/Python 规范、纯 ASCII 面、技能安装规则） |
 | `statusline-command.sh` | `~/.claude/statusline-command.sh` | 2026-09-20 | 状态栏渲染脚本，159 行，纯 bash + jq |
 
@@ -56,6 +56,7 @@ done
 | `effortLevel` + `modelSettings` | 均为 `xhigh` | 当前两处都是 xhigh，等于没有分层；若想给弱模型降档，把顶层 `effortLevel` 改成 `high`，由 `modelSettings` 单独抬高 Opus/Sonnet |
 | `permissions.defaultMode` | `bypassPermissions` | 跳过工具确认。**换机器时按需调整**，这是信任度很高的设置 |
 | `statusLine.command` | `bash ~/.claude/statusline-command.sh` | 用 `bash <path>` 而非裸路径：不需要可执行位，也不写死 `/home/<user>`，拷到别的机器直接能用 |
+| `hooks.PreToolUse` | `bash ~/.claude/skills/antigravity-cli/scripts/agy-guard.sh` | 拦下裸 `agy -p`、`--dangerously-skip-permissions`、agent 自行 `agy-run.sh grant` 和改 agy 权限文件。**`bypassPermissions` 下钩子照样生效**，所以同意闸门放在这里而不是权限规则里。依赖 `antigravity-cli` skill 已装进 `~/.claude/skills/`；没装时 `bash` 找不到脚本，每次工具调用会报一条非阻断的钩子错误 |
 
 ## statusline 说明
 

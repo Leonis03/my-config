@@ -40,7 +40,7 @@ way they are.
 | **Rebuild the whole environment on a new machine** | [`wsl/setup/`](wsl/setup/) -- the rebuild guide plus 12 config originals you can `cp` directly |
 | Set up Git and GitHub (including the privacy email) | [`git-github/`](git-github/) |
 | Set up Claude Code | [`agent/claude-code/`](agent/claude-code/) |
-| Find a ready-made skill, or sync skills to this machine | [`agent/skills/`](agent/skills/) -- 14 of them; deploy with `tools/sync-skills.sh`, not `cp` |
+| Find a ready-made skill, or sync skills to this machine | [`agent/skills/`](agent/skills/) -- 18 of them; deploy with `tools/sync-skills.sh`, not `cp` |
 | Look up one specific trap | See the pitfall index below |
 | Understand the writing and publishing rules here | [`conventions.md`](conventions.md) -- ASCII boundaries, naming, `tmp/`, the pre-publish gate, the two-repo sync |
 | Understand the placeholder scheme: no real usernames in the repo, yet everything resolves on deploy | [`redaction.md`](redaction.md) -- the three classes of value and the two pipelines |
@@ -76,7 +76,7 @@ updates visible)
 | Directory | Contents |
 | :--- | :--- |
 | [`claude-code/`](agent/claude-code/) | `settings.json`, the global `CLAUDE.md`, a 159-line statusline script. Byte-identical to the live copies |
-| [`skills/`](agent/skills/) | 14 skills, serving both `~/.claude/` and `~/.gemini/config/`. The repo copy is redacted; deploy and verify through [`tools/sync-skills.sh`](tools/sync-skills.sh) |
+| [`skills/`](agent/skills/) | 18 skills, serving both `~/.claude/` and `~/.gemini/config/`. The repo copy is redacted; deploy and verify through [`tools/sync-skills.sh`](tools/sync-skills.sh) |
 | [`antigravity/`](agent/antigravity/) | The `~/.gemini/config/AGENTS.md` original (which forces `bx`), plus `agy` CLI usage and image handoff |
 | [`brave-search/`](agent/brave-search/) | The `bx` CLI and the Brave Search MCP integration |
 
@@ -133,6 +133,13 @@ Entries that took real time to diagnose and whose conclusion is not obvious.
 | **The input method will not bind under Wayland** | An Electron app runs fine but cannot type Chinese, and no flag helps. Weston reserves `input_method` for its own IME client and WSLg does not run one; worse, fcitx5 hitting error 71 **exits the whole process**, taking the X11-side input method with it | [`wsl/gui-ime/`](wsl/gui-ime/) sections 1 and 9 |
 | **`wmctrl` is useless under WSLg** | Window-placement scripts silently do nothing. The Weston WM does not export `_NET_CLIENT_LIST`, so `wmctrl -l` always fails -- and the script uses exactly that to find windows | [`wsl/gui-ime/`](wsl/gui-ime/) section 8 |
 | **The machine changed, the document did not** | A "deployment summary" whose display parameters, file roles and fixes all disagree with this machine. Comparing first-run traces (`Crashpad/client_id`) against the document's own date proves it was never written on this machine at all | [`wsl/gui-ime/`](wsl/gui-ime/) sections 5 and 8 |
+| **PRoot xrdb locks up without timeout** | Honor Tablet Linux Lab permanently hangs on "Loading..." when switching to Debian: `xrdb -merge` blocks forever and suppresses the `StartFinished` handshake. Direct edits to `start` trigger `AssetsPatcher` hash overwrite; intercept via binary wrapper instead | [`agent/skills/honor-linuxlab/`](agent/skills/honor-linuxlab/) |
+| **Ubuntu ARM64 mirrors require ubuntu-ports** | `apt update` fails with 404 for `binary-arm64/Packages` after switching to Tsinghua mirror because non-x86 architectures live under a separate repository path | [`agent/skills/honor-linuxlab/`](agent/skills/honor-linuxlab/) |
+| **`execve` is decoupled from `/proc/self/exe`** | Command runner fails with `readlink /proc/self/exe: no such file`, mistaken for kernel fork failure. Linux `execve(2)` does not need `/proc`; modern Go/CLI runtimes query it for self-inspection. Mounting `/proc` satisfies runtime dependencies, not privilege escalation | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
+| **`unshare -m` isolates mounts from running peer sessions** | Mounts fixed on host and `--check` passes, yet running agent still fails with `open /dev/ptmx: no such device`. `unshare -m` creates a private Mount Namespace; restarting the agent inside the existing un-exited `bash` keeps it trapped in the stale namespace | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
+| **Android Termux reports `required file not found`** | Executing a freshly installed CLI binary fails with file not found even though `ls` confirms it exists. `readelf -l` reveals `PT_INTERP` requests `/lib/ld-linux-aarch64.so.1`, but Android runs Bionic libc (`/system/bin/linker64`); the kernel cannot find the glibc linker and returns ENOENT. A glibc chroot container is required | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
+| **Hotplugged USB drives are invisible in chroot** | Connecting an external drive after starting the Debian container leaves `/android/mnt/media_rw` empty even though Android recognizes it. `unshare -m` and `rprivate` block mount propagation; bridge mounts dynamically via `nsenter -t 1 -m` | [`agent/skills/termux-debian-external-drive/`](agent/skills/termux-debian-external-drive/) |
+| **NTFS permission masking breaks SSH key authentication** | Running `chmod 600` on private keys stored directly on NTFS exits 0 but the underlying FUSE driver fixes modes to `770`, triggering OpenSSH protection blocks; store keys in `.tar` archives and unpack to native Linux storage | [`agent/skills/termux-debian-external-drive/`](agent/skills/termux-debian-external-drive/) |
 
 ---
 
@@ -166,7 +173,7 @@ The following is **not** covered by either license above; copyright stays with i
 - `wsl/setup/files/bashrc` retains fragments of Debian's stock `.bashrc`
   (`shopt -s checkwinsize`, `lesspipe`, `dircolors`, `alias ll=` and similar).
 - Several files under `wsl/setup/files/` contain installer-generated blocks:
-  `>>> conda initialize <<<` (Anaconda), oh-my-zsh lines, and the Antigravity CLI PATH block.
+  oh-my-zsh lines and the Antigravity CLI PATH block.
 
 These are widely-copied boilerplate fragments, noted here for accuracy; no copyright is
 claimed over them.

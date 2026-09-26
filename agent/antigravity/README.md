@@ -14,7 +14,7 @@ CLI 是 **Windows 可执行文件**（`C:\Users\<your-windows-user>\AppData\Loca
 | `agents-brave-uv.md` | `~/.gemini/config/AGENTS.md` | 2026-09-20 | 本机（WSL）全局约定：强制 `bx`、uv/Python 3.12、纯 ASCII 面、子代理用 flash |
 | `agents-brave-uv-desktop.md` | — | — | **另一套环境**的变体（uv 3.13、系统 Python 3.12）。本机 Windows 侧 `.gemini/config/` 下既无 `AGENTS.md` 也无 `skills/`，即当前未部署；改 WSL 侧约定时不要顺手同步它 |
 | `antigravity-cli.md` | — | — | `agy` 用法与实测记录（doc，非 skill；skill 在 [`../skills/antigravity-cli/`](../skills/antigravity-cli/)） |
-| `antigravity-cli-image-read.md` | — | — | 严格只读权限下的读图：`read_file(*)` + 路径写进 prompt。含完整排查记录——`command()` 规则实为精确全串匹配、sandbox 超时的成因、失败方案对照 |
+| `antigravity-cli-image-read.md` | — | — | 历史记录（Windows 版 v1.1.12）：严格只读权限下的读图，`read_file(*)` + 路径写进 prompt，含完整排查记录。v1.2.11 起部分结论已变，现行做法见 skill 的 `agy-run.sh --image` |
 
 ```bash
 cp agents-brave-uv.md ~/.gemini/config/AGENTS.md

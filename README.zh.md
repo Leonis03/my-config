@@ -32,7 +32,7 @@
 | **在新机器上复刻整套环境** | [`wsl/setup/`](wsl/setup/) —— 复刻指南 + 12 个可直接 `cp` 的配置原件 |
 | 配 Git 与 GitHub（含隐私邮箱） | [`git-github/`](git-github/) |
 | 配 Claude Code | [`agent/claude-code/`](agent/claude-code/) |
-| 找一个现成的 skill，或把 skill 同步到本机 | [`agent/skills/`](agent/skills/) —— 14 个；部署走 `tools/sync-skills.sh`，不是 `cp` |
+| 找一个现成的 skill，或把 skill 同步到本机 | [`agent/skills/`](agent/skills/) —— 18 个；部署走 `tools/sync-skills.sh`，不是 `cp` |
 | 查某个具体的坑 | 见下面的「踩坑索引」 |
 | 了解这里的写作与发布规矩 | [`conventions.zh.md`](conventions.zh.md) —— ASCII 边界、命名、`tmp/`、发布门禁、双仓同步 |
 | 搞懂占位符体系：为什么仓库里没有真用户名，部署却能解析 | [`redaction.zh.md`](redaction.zh.md) —— 三类值的决策树与两条流水线 |
@@ -61,7 +61,7 @@
 | 目录 | 内容 |
 | :--- | :--- |
 | [`claude-code/`](agent/claude-code/) | `settings.json`、全局 `CLAUDE.md`、159 行的状态栏脚本。与本机逐字节一致 |
-| [`skills/`](agent/skills/) | 14 个 skill，同时供 `~/.claude/` 与 `~/.gemini/config/`。仓库是脱敏的，部署与核对走 [`tools/sync-skills.sh`](tools/sync-skills.sh) |
+| [`skills/`](agent/skills/) | 18 个 skill，同时供 `~/.claude/` 与 `~/.gemini/config/`。仓库是脱敏的，部署与核对走 [`tools/sync-skills.sh`](tools/sync-skills.sh) |
 | [`antigravity/`](agent/antigravity/) | `~/.gemini/config/AGENTS.md` 原件（强制走 `bx`）、`agy` CLI 使用与图片交接 |
 | [`brave-search/`](agent/brave-search/) | `bx` CLI 与 Brave Search MCP 接入 |
 
@@ -116,6 +116,13 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 | **Wayland 下输入法绑不上** | Electron 应用跑得好好的就是打不出中文，flag 怎么调都没用。Weston 把 `input_method` 留给自己的 IME 客户端，WSLg 又不跑它；更坑的是 fcitx5 撞上 error 71 会**整个进程退出**，连 X11 侧输入法一起没 | [`wsl/gui-ime/`](wsl/gui-ime/) 第 1、9 节 |
 | **`wmctrl` 在 WSLg 全废** | 窗口摆放脚本静默空转、什么也没发生。Weston WM 不导出 `_NET_CLIENT_LIST`，`wmctrl -l` 恒失败，而脚本恰好用它找窗口 | [`wsl/gui-ime/`](wsl/gui-ime/) 第 8 节 |
 | **机器换了、文档没换** | 一份「部署总结」里的显示参数、文件角色、修复方案全对不上本机。用首次运行留下的痕迹（`Crashpad/client_id`）与文档落款比时间，就能判定它根本不是在这台机器上写的 | [`wsl/gui-ime/`](wsl/gui-ime/) 第 5、8 节 |
+| **PRoot 下 xrdb 无超时挂死整个桌面** | 荣耀平板 Linux 实验室切 Debian 永久卡在「加载中」，`xrdb -merge` 系统调用死锁阻断 `StartFinished` 握手信号；修改 `start` 会被 `AssetsPatcher` 校验覆写，需用子程序 wrapper 拦截规避 | [`agent/skills/honor-linuxlab/`](agent/skills/honor-linuxlab/) |
+| **ARM64 换 Ubuntu 镜像源必须用 ubuntu-ports** | 平板换清华源后 `apt update` 报 404 找不到 `binary-arm64/Packages`，因为非 x86 架构在独立路径下 | [`agent/skills/honor-linuxlab/`](agent/skills/honor-linuxlab/) |
+| **`execve` 与 `/proc/self/exe` 解耦** | 命令执行报 `readlink /proc/self/exe: no such file`，误以为内核无法派生进程。Linux `execve(2)` 本身不依赖 `/proc`，是 Go/CLI 运行器做自省与路径解析时受阻，挂载 `/proc` 仅是满足运行时自省而非提权 | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
+| **`unshare -m` 隔绝了父子会话挂载** | 宿主更新了 chroot 挂载且 `--check` 通过，已运行的 agent 依然报 `open /dev/ptmx: no such device`。`unshare -m` 创建了独立 Mount Namespace，旧终端里的 `bash` 未退出导致重启的 agent 仍困在旧命名空间 | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
+| **Android Termux 报 `required file not found`** | 执行官方安装的 CLI 工具报文件未找到，但 `ls` 明明在；`readelf -l` 发现其 `PT_INTERP` 请求 `/lib/ld-linux-aarch64.so.1`，而 Android 原生使用 Bionic libc（`/system/bin/linker64`），内核找不到 glibc 解释器返回 ENOENT，必须用 chroot/glibc 容器 | [`agent/skills/android-chroot-debian/`](agent/skills/android-chroot-debian/) |
+| **热插拔移动硬盘在 chroot 隔离中失明** | 进入 Debian 容器后再插入移动硬盘，Android 正常识别但容器内 `/android/mnt/media_rw` 为空。`unshare -m` 与 `rprivate` 阻断了挂载传播，需通过 `nsenter -t 1 -m` 穿透宿主命名空间动态桥接挂载 | [`agent/skills/termux-debian-external-drive/`](agent/skills/termux-debian-external-drive/) |
+| **NTFS 权限伪造阻断 SSH 密钥认证** | 移动硬盘上私钥执行 `chmod 600` 虽返回 0 但底层 FUSE 驱动固化为 `770`，触发 OpenSSH 门禁拒连；必须用 `tar` 归档保留 POSIX 权限并在本地 Linux 文件系统解压 | [`agent/skills/termux-debian-external-drive/`](agent/skills/termux-debian-external-drive/) |
 
 ---
 
@@ -138,6 +145,6 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 
 - `windows/powershell/SamplePSReadLineProfile_GitHub.ps1` —— [PowerShell/PSReadLine](https://github.com/PowerShell/PSReadLine) 官方示例的逐字副本，694 行，Copyright (c) 2013 Jason Shirk，**BSD-2-Clause**。完整声明已写在该文件头部。
 - `wsl/setup/files/bashrc` 保留了 Debian 出厂 `.bashrc` 的若干片段（`shopt -s checkwinsize`、`lesspipe`、`dircolors`、`alias ll=` 等）。
-- `wsl/setup/files/` 下几个文件含安装器生成的块：`>>> conda initialize <<<`（Anaconda）、oh-my-zsh 相关行、Antigravity CLI 的 PATH 块。
+- `wsl/setup/files/` 下几个文件含安装器生成的块：oh-my-zsh 相关行、Antigravity CLI 的 PATH 块。
 
 这些都是被广泛复制的模板片段，此处如实标注，不主张对它们的版权。
