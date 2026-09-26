@@ -288,8 +288,10 @@ echo 'export SOME_TOKEN=xxx' >> ~/.shell_secrets
 ### 步骤 5：工具链
 
 ```bash
-# nvm + Node
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash
+# nvm + Node（动态解析 nvm 官方最新版本安装，失败时保底 v0.40.8）
+NVM_URL=$(curl -fsSLI -o /dev/null -w "%{url_effective}" https://github.com/nvm-sh/nvm/releases/latest)
+NVM_VER="${NVM_URL##*/}"
+curl -o- "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VER:-v0.40.8}/install.sh" | bash
 exec zsh
 nvm install --lts          # 参考环境为 v24.21.0
 
