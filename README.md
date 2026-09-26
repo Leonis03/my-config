@@ -166,7 +166,7 @@ The following is **not** covered by either license above; copyright stays with i
 - `wsl/setup/files/bashrc` retains fragments of Debian's stock `.bashrc`
   (`shopt -s checkwinsize`, `lesspipe`, `dircolors`, `alias ll=` and similar).
 - Several files under `wsl/setup/files/` contain installer-generated blocks:
-  `>>> conda initialize <<<` (Anaconda), oh-my-zsh lines, and the Antigravity CLI PATH block.
+  oh-my-zsh lines and the Antigravity CLI PATH block.
 
 These are widely-copied boilerplate fragments, noted here for accuracy; no copyright is
 claimed over them.

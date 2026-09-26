@@ -17,7 +17,7 @@
 | 内核 | 6.18.33.2-microsoft-standard-WSL2 |
 | 默认 Shell | zsh 5.9 + oh-my-zsh（主题 `robbyrussell`，插件 `git` `zsh-autosuggestions`） |
 | apt 源 | 清华 TUNA 镜像 |
-| 工具链 | git 2.55.0（git-core PPA）· gh 2.93.0 · node v24.21.0 (nvm 0.40.4) · pnpm 11.27.0 · conda 26.5.3 · uv 0.12.5 (Python 3.12) |
+| 工具链 | git 2.55.0（git-core PPA）· gh 2.93.0 · node v24.21.0 (nvm 0.40.4) · pnpm 11.27.0 · uv 0.12.5 (Python 3.12) |
 | 互操作 | `appendWindowsPath=false` + 显式函数桥接 |
 
 ---
@@ -38,8 +38,8 @@
 | `files/shell_common` | `~/.shell_common` | **bash 与 zsh 共用**的环境变量、PATH、代理、输入法、keyring |
 | `files/shell_wslfn` | `~/.shell_wslfn` | Windows 互操作**函数**定义。除末尾 export 一个 `BASH_ENV` 指回自己（给非交互 bash 用）外无副作用，所以够轻，敢从 `~/.zshenv` 里 source |
 | `files/zshenv` | `~/.zshenv` | 每次 zsh 启动都会读，**包括非交互**（脚本 / AI Agent） |
-| `files/zshrc` | `~/.zshrc` | zsh 专有：oh-my-zsh、主题、PROMPT、conda(`shell.zsh`) |
-| `files/bashrc` | `~/.bashrc` | bash 专有：PS1、历史、补全、conda(`shell.bash`) |
+| `files/zshrc` | `~/.zshrc` | zsh 专有：oh-my-zsh、主题、PROMPT |
+| `files/bashrc` | `~/.bashrc` | bash 专有：PS1、历史、补全 |
 | `files/profile` | `~/.profile` | 登录 shell 入口 |
 
 > 配置文件内的注释一律使用**纯 ASCII 英文**，避免跨机器、跨终端的编码问题。
@@ -293,18 +293,16 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash
 exec zsh
 nvm install --lts          # 参考环境为 v24.21.0
 
-# pnpm（PNPM_HOME 已在 shell_common 中定义）
-corepack enable pnpm       # 或 npm i -g pnpm
+# pnpm（PNPM_HOME 已在 shell_common 中定义，推荐独立脚本或 npm 安装，避免使用 corepack）
+curl -fsSL https://get.pnpm.io/install.sh | sh -
+# 或: npm install -g pnpm
 
-# uv（Python，全局固定 3.12）
+# uv（Python 包管理与隔离，全局固定 3.12）
 curl -LsSf https://astral.sh/uv/install.sh | sh
 mkdir -p ~/.config/uv && echo "3.12" > ~/.config/uv/.python-version
-
-# Miniconda / Anaconda（可选，参考环境装在 ~/anaconda3）
-# 装完执行 conda init bash && conda init zsh，它会各自写入对应 rc 文件
 ```
 
-> **Python 约定**：系统 `/usr/bin/python3` 严格保留给 OS 包，日常一律 `uv run --python 3.12`。与 git 用 PPA 就地升级不同，Python 必须走旁路隔离——大量 Ubuntu 组件依赖系统 Python，换掉会连锁炸掉 apt。
+> **Python 约定**：系统 `/usr/bin/python3` 严格保留给 OS 包，日常一律 `uv run --python 3.12`。无需也不默认安装 Anaconda/Miniconda，Python 包与虚拟环境全部由 `uv` 统一管理。与 git 用 PPA 就地升级不同，Python 必须走旁路隔离——大量 Ubuntu 组件依赖系统 Python，换掉会连锁炸掉 apt。
 
 #### 版本选择：两个刻意不升的决定
 
@@ -482,7 +480,7 @@ wslview "https://example.com"
 for s in zsh bash; do $s -ic 'echo "'$s': BROWSER=$BROWSER proxy=$http_proxy PNPM_HOME=$PNPM_HOME"'; done
 
 # 7. 工具链
-zsh -ic 'node -v; pnpm -v; conda --version; uv --version; git --version; gh --version'
+zsh -ic 'node -v; pnpm -v; uv --version; git --version; gh --version'
 
 # 8. 不进 system32：从 Windows 侧目录启动 shell 应自动回 ~
 cd /mnt/c/Windows/System32 && zsh -ic 'pwd'   # 预期：/home/<user>

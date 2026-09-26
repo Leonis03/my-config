@@ -138,6 +138,6 @@ Docker；[`tools/latex/`](tools/latex/)（VS Code LaTeX Workshop 工具链，以
 
 - `windows/powershell/SamplePSReadLineProfile_GitHub.ps1` —— [PowerShell/PSReadLine](https://github.com/PowerShell/PSReadLine) 官方示例的逐字副本，694 行，Copyright (c) 2013 Jason Shirk，**BSD-2-Clause**。完整声明已写在该文件头部。
 - `wsl/setup/files/bashrc` 保留了 Debian 出厂 `.bashrc` 的若干片段（`shopt -s checkwinsize`、`lesspipe`、`dircolors`、`alias ll=` 等）。
-- `wsl/setup/files/` 下几个文件含安装器生成的块：`>>> conda initialize <<<`（Anaconda）、oh-my-zsh 相关行、Antigravity CLI 的 PATH 块。
+- `wsl/setup/files/` 下几个文件含安装器生成的块：oh-my-zsh 相关行、Antigravity CLI 的 PATH 块。
 
 这些都是被广泛复制的模板片段，此处如实标注，不主张对它们的版权。
