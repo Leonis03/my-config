@@ -294,6 +294,7 @@ NVM_VER="${NVM_URL##*/}"
 curl -o- "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VER:-v0.40.8}/install.sh" | bash
 exec zsh
 nvm install --lts          # 参考环境为 v24.21.0
+npm i -g npm@latest
 
 # pnpm（PNPM_HOME 已在 shell_common 中定义，推荐独立脚本或 npm 安装，避免使用 corepack）
 curl -fsSL https://get.pnpm.io/install.sh | sh -
@@ -482,7 +483,7 @@ wslview "https://example.com"
 for s in zsh bash; do $s -ic 'echo "'$s': BROWSER=$BROWSER proxy=$http_proxy PNPM_HOME=$PNPM_HOME"'; done
 
 # 7. 工具链
-zsh -ic 'node -v; pnpm -v; uv --version; git --version; gh --version'
+zsh -ic 'node -v; npm -v; pnpm -v; uv --version; git --version; gh --version'
 
 # 8. 不进 system32：从 Windows 侧目录启动 shell 应自动回 ~
 cd /mnt/c/Windows/System32 && zsh -ic 'pwd'   # 预期：/home/<user>
